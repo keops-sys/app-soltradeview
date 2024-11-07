@@ -35,7 +35,7 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const connection = new Connection('https://thrilling-red-tree.solana-mainnet.quiknode.pro/392c7c4a3140c4fcef39f1be375947284e2f799c');
+const connection = new Connection('https://api.mainnet-beta.solana.com');
 const wallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIVATE_KEY || '')));
 
 const INPUT_MINT = 'So11111111111111111111111111111111111111112'; // SOL
@@ -45,8 +45,8 @@ const SLIPPAGE_BPS = 300; // 3%
 const SEND_OPTIONS = {
   skipPreflight: true,
   maxRetries: 3,
-  computeUnits: 1_000_000,    // Maximum compute units
-  priorityFee: 10_001_000,    // Priority fee in microlamports (0.01 SOL)
+  computeUnits: 1_000_000,    
+  priorityFee: 10_000_000,    // 0.01 SOL priority fee
 };
 
 async function calculateTradeAmount(inputMint, action, quote) {
@@ -201,30 +201,47 @@ async function abortableResender(connection, serializedTransaction, abortSignal)
 async function sendAndConfirmTransaction({ connection, serializedTransaction, blockhashWithExpiryBlockHeight }) {
   const controller = new AbortController();
   const abortSignal = controller.signal;
+  const maxRetries = 3;
 
-  try {
-    const signature = await connection.sendRawTransaction(serializedTransaction, SEND_OPTIONS);
-    console.log('Transaction sent. Signature:', signature);
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      // Get fresh blockhash for each attempt
+      const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+      
+      const signature = await connection.sendRawTransaction(
+        serializedTransaction,
+        {
+          ...SEND_OPTIONS,
+          preflightCommitment: 'confirmed'
+        }
+      );
+      console.log(`Attempt ${attempt + 1}: Transaction sent. Signature:`, signature);
 
-    abortableResender(connection, serializedTransaction, abortSignal);
-    console.log('Transaction confirm:', blockhashWithExpiryBlockHeight);
+      // Start resender in background
+      abortableResender(connection, serializedTransaction, abortSignal);
 
-    await connection.confirmTransaction(
-      {
+      // Wait for confirmation with shorter timeout
+      const confirmation = await connection.confirmTransaction({
         signature,
-        ...blockhashWithExpiryBlockHeight,
-      },
-      'confirmed'
-    );
+        blockhash: latestBlockhash.blockhash,
+        lastValidBlockHeight: latestBlockhash.lastValidBlockHeight
+      }, 'confirmed');
 
-    console.log(`Transaction successful: https://solscan.io/tx/${signature}`);
-    return signature;
-  } catch (error) {
-    console.error('Transaction failed:', error);
-    throw error;
-  } finally {
-    controller.abort();
+      if (confirmation.value.err) {
+        throw new Error(`Transaction failed: ${confirmation.value.err}`);
+      }
+
+      console.log(`Transaction successful: https://solscan.io/tx/${signature}`);
+      return signature;
+    } catch (error) {
+      console.error(`Attempt ${attempt + 1} failed:`, error);
+      if (attempt === maxRetries - 1) throw error;
+      // Wait before retry
+      await wait(2000);
+    }
   }
+} finally {
+  controller.abort();
 }
 
 /**
