@@ -1,6 +1,19 @@
 import express from 'express';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import fs from 'fs';
+import https from 'https';
+
+// Load SSL certificates
+const privateKey = fs.readFileSync('/root/.acme.sh/soltradeview.com_ecc/soltradeview.com.key', 'utf8');
+const certificate = fs.readFileSync('/root/.acme.sh/soltradeview.com_ecc/fullchain.cer', 'utf8');
+const ca = fs.readFileSync('/root/.acme.sh/soltradeview.com_ecc/ca.cer', 'utf8');
+const credentials = {
+  key: privateKey,
+  cert: certificate,
+  ca: ca,
+};
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -309,7 +322,18 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+const httpsServer = https.createServer(credentials, app);
+
+httpsServer.listen(443, () => {
+  console.log('HTTPS Server running on port 443');
+});
+
+
+const httpApp = express();
+httpApp.use((req, res) => {
+  res.redirect(`https://${req.headers.host}${req.url}`);
+});
+
+http.createServer(httpApp).listen(80, () => {
+  console.log('HTTP Server running on port 80 and redirecting to HTTPS');
 });
