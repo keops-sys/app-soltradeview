@@ -207,10 +207,8 @@
 
                     <div class="py-12 md:py-16">
                         <div class="overflow-hidden">
-                            <div
-                                class="inline-flex w-full flex-nowrap overflow-hidden [mask-image:_linear-gradient(to_right,transparent_0,_black_128px,_black_calc(100%-128px),transparent_100%)]">
-                                <ul
-                                    class="flex animate-infinite-scroll items-center justify-center md:justify-start space-x-8">
+                            <div class="inline-flex w-full flex-nowrap overflow-hidden [mask-image:_linear-gradient(to_right,transparent_0,_black_128px,_black_calc(100%-128px),transparent_100%)]">
+                                <ul class="flex items-center justify-center md:justify-start space-x-8 pr-8">
                                     <li>
                                         <img src="./images/21AErpiB8uSb94oQKRcwuHqyHF93njAxBSbdUrpupump.webp" alt="Client 1"
                                             class="w-20 h-20 aspect-square rounded-full object-cover border-2 border-gray-200 shadow-md">
@@ -232,9 +230,29 @@
                                             class="w-20 h-20 aspect-square rounded-full object-cover border-2 border-gray-200 shadow-md">
                                     </li>
                                 </ul>
-                                <ul
-                                    class="flex animate-infinite-scroll items-center justify-center md:justify-start space-x-8"
-                                    aria-hidden="true">
+                                <ul class="flex items-center justify-center md:justify-start space-x-8 pr-8" aria-hidden="true">
+                                    <li>
+                                        <img src="./images/21AErpiB8uSb94oQKRcwuHqyHF93njAxBSbdUrpupump.webp" alt="Client 1"
+                                            class="w-20 h-20 aspect-square rounded-full object-cover border-2 border-gray-200 shadow-md">
+                                    </li>
+                                    <li>
+                                        <img src="./images/2qEHjDLDLbuBgRYvsxhc5D6uDWAivNFZGan56P1tpump.webp" alt="Client 2"
+                                            class="w-20 h-20 aspect-square rounded-full object-cover border-2 border-gray-200 shadow-md">
+                                    </li>
+                                    <li>
+                                        <img src="./images/5mbK36SZ7J19An8jFochhQS4of8g6BwUjbeCSxBSoWdp.webp" alt="Client 3"
+                                            class="w-20 h-20 aspect-square rounded-full object-cover border-2 border-gray-200 shadow-md">
+                                    </li>
+                                    <li>
+                                        <img src="./images/7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr.webp" alt="Client 4"
+                                            class="w-20 h-20 aspect-square rounded-full object-cover border-2 border-gray-200 shadow-md">
+                                    </li>
+                                    <li>
+                                        <img src="./images/A8C3xuqscfmyLrte3VmTqrAq8kgMASius9AFNANwpump.webp" alt="Client 5"
+                                            class="w-20 h-20 aspect-square rounded-full object-cover border-2 border-gray-200 shadow-md">
+                                    </li>
+                                </ul>
+                                <ul class="flex items-center justify-center md:justify-start space-x-8 pr-8" aria-hidden="true">
                                     <li>
                                         <img src="./images/21AErpiB8uSb94oQKRcwuHqyHF93njAxBSbdUrpupump.webp" alt="Client 1"
                                             class="w-20 h-20 aspect-square rounded-full object-cover border-2 border-gray-200 shadow-md">
@@ -302,9 +320,8 @@
                                         <button class="flex items-center text-sm font-medium text-slate-50 rounded border bg-slate-800/25 w-full px-3 py-2 transition duration-150 ease-in-out hover:opacity-100"
                                             :class="tab !== '1' ? 'border-slate-700 opacity-50' : 'border-purple-700 shadow shadow-purple-500/25'"
                                             @click.prevent="tab = '1'">
-                                            <svg class="shrink-0 fill-slate-300 mr-3" xmlns="http://www.w3.org/2000/svg" width="16" height="16">
-                                                <!-- Icon for Effortless Setup -->
-                                                <path d="M8 0a8 8 0 100 16A8 8 0 108 0zm4 9H4V7h8v2z"/>
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 mr-2">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
                                             </svg>
                                             <span>Effortless Setup</span>
                                         </button>
@@ -312,20 +329,25 @@
                                         <button class="flex items-center text-sm font-medium text-slate-50 rounded border bg-slate-800/25 w-full px-3 py-2 transition duration-150 ease-in-out hover:opacity-100"
                                             :class="tab !== '2' ? 'border-slate-700 opacity-50' : 'border-purple-700 shadow shadow-purple-500/25'"
                                             @click.prevent="tab = '2'">
-                                            <svg class="shrink-0 fill-slate-300 mr-3" xmlns="http://www.w3.org/2000/svg" width="16" height="16">
-                                                <!-- Icon for High-Speed Execution -->
-                                                <path d="M16 8l-4-4v3H4v2h8v3l4-4z"/>
-                                            </svg>
+
+
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 mr-2">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.047 8.287 8.287 0 0 0 9 9.601a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z" />
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 18a3.75 3.75 0 0 0 .495-7.468 5.99 5.99 0 0 0-1.925 3.547 5.975 5.975 0 0 1-2.133-1.001A3.75 3.75 0 0 0 12 18Z" />
+                                              </svg>
+
+                                              
                                             <span>High-Speed Execution</span>
                                         </button>
                                         <!-- Tab 3 -->
                                         <button class="flex items-center text-sm font-medium text-slate-50 rounded border bg-slate-800/25 w-full px-3 py-2 transition duration-150 ease-in-out hover:opacity-100"
                                             :class="tab !== '3' ? 'border-slate-700 opacity-50' : 'border-purple-700 shadow shadow-purple-500/25'"
                                             @click.prevent="tab = '3'">
-                                            <svg class="shrink-0 fill-slate-300 mr-3" xmlns="http://www.w3.org/2000/svg" width="16" height="16">
-                                                <!-- Icon for Customizable Trading Logic -->
-                                                <path d="M8 0l8 8-8 8-8-8 8-8zm0 2.828L3.172 8 8 12.828 12.828 8 8 2.828z"/>
-                                            </svg>
+           
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 mr-2">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 6.087c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.036-1.007-1.875-2.25-1.875s-2.25.84-2.25 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959v0a.64.64 0 0 1-.657.643 48.39 48.39 0 0 1-4.163-.3c.186 1.613.293 3.25.315 4.907a.656.656 0 0 1-.658.663v0c-.355 0-.676-.186-.959-.401a1.647 1.647 0 0 0-1.003-.349c-1.036 0-1.875 1.007-1.875 2.25s.84 2.25 1.875 2.25c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401v0c.31 0 .555.26.532.57a48.039 48.039 0 0 1-.642 5.056c1.518.19 3.058.309 4.616.354a.64.64 0 0 0 .657-.643v0c0-.355-.186-.676-.401-.959a1.647 1.647 0 0 1-.349-1.003c0-1.035 1.008-1.875 2.25-1.875 1.243 0 2.25.84 2.25 1.875 0 .369-.128.713-.349 1.003-.215.283-.4.604-.4.959v0c0 .333.277.599.61.58a48.1 48.1 0 0 0 5.427-.63 48.05 48.05 0 0 0 .582-4.717.532.532 0 0 0-.533-.57v0c-.355 0-.676.186-.959.401-.29.221-.634.349-1.003.349-1.035 0-1.875-1.007-1.875-2.25s.84-2.25 1.875-2.25c.37 0 .713.128 1.003.349.283.215.604.401.96.401v0a.656.656 0 0 0 .658-.663 48.422 48.422 0 0 0-.37-5.36c-1.886.342-3.81.574-5.766.689a.578.578 0 0 1-.61-.58v0Z" />
+                                              </svg>
+                                              
                                             <span>Customizable Trading Logic</span>
                                         </button>
                                     </div>
@@ -362,31 +384,31 @@
                                                     <!-- Tab 1 Content -->
                                                     <div x-show="tab === '1'" x-transition>
                                                         <div class="relative flex items-center justify-center w-16 h-16 border border-transparent rounded-2xl shadow-2xl">
-                                                            <!-- Icon for Tab 1 -->
-                                                            <svg class="relative fill-slate-200" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
-                                                                <!-- Replace with appropriate icon -->
-                                                                <path d="M8 0a8 8 0 100 16A8 8 0 108 0zm4 9H4V7h8v2z"/>
-                                                            </svg>
+                                                            <img class="absolute bottom-0 left-1/2 -translate-x-1/2 mx-auto max-w-none md:relative md:left-0 md:translate-x-0 w-[252px] h-[200px] object-cover" 
+                                                            src="./images/effortless-setup-automate-solana-swap.png" 
+                                                            width="200" 
+                                                            height="200" 
+                                                            alt="Effortless Setup Automate Solana Swap">
                                                         </div>
                                                     </div>
                                                     <!-- Tab 2 Content -->
                                                     <div x-show="tab === '2'" x-transition>
                                                         <div class="relative flex items-center justify-center w-16 h-16 border border-transparent rounded-2xl shadow-2xl">
-                                                            <!-- Icon for Tab 2 -->
-                                                            <svg class="relative fill-slate-200" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
-                                                                <!-- Replace with appropriate icon -->
-                                                                <path d="M16 8l-4-4v3H4v2h8v3l4-4z"/>
-                                                            </svg>
+                                                            <img class="absolute bottom-0 left-1/2 -translate-x-1/2 mx-auto max-w-none md:relative md:left-0 md:translate-x-0 w-[252px] h-[200px] object-cover" 
+                                                            src="./images/high-speed-solana-trades-tradingview.png" 
+                                                            width="252" 
+                                                            height="200" 
+                                                            alt="high speed solana trades tradingview">
                                                         </div>
                                                     </div>
                                                     <!-- Tab 3 Content -->
                                                     <div x-show="tab === '3'" x-transition>
                                                         <div class="relative flex items-center justify-center w-16 h-16 border border-transparent rounded-2xl shadow-2xl">
-                                                            <!-- Icon for Tab 3 -->
-                                                            <svg class="relative fill-slate-200" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
-                                                                <!-- Replace with appropriate icon -->
-                                                                <path d="M8 0l8 8-8 8-8-8 8-8zm0 2.828L3.172 8 8 12.828 12.828 8 8 2.828z"/>
-                                                            </svg>
+                                                            <img class="absolute bottom-0 left-1/2 -translate-x-1/2 mx-auto max-w-none md:relative md:left-0 md:translate-x-0 w-[252px] h-[200px] object-cover" 
+                                                            src="./images/customizable-trading-logic-solana.png" 
+                                                            width="252" 
+                                                            height="200" 
+                                                            alt="customizable trading logic solana">
                                                         </div>
                                                     </div>
                                                 </div>
@@ -469,7 +491,7 @@
                                                     <div class="mb-5">
                                                         <div>
                                                             <h3 class="inline-flex text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-200/60 via-slate-200 to-slate-200/60 pb-1">
-                                                                Effortless Setup
+                                                                Bridge Tradingview alerts to Soltradeview
                                                             </h3>
                                                             <p class="text-slate-400">
                                                                 Simple, no-code integration. User-friendly dashboard for managing alerts and wallets.
@@ -499,7 +521,7 @@
                                                 <div class="md:max-w-[480px] shrink-0 order-1 md:order-none p-6 pt-0 md:p-8">
                                                     <div>
                                                         <h3 class="inline-flex text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-200/60 via-slate-200 to-slate-200/60 pb-1">
-                                                            High-Speed Execution
+                                                            Real time Solana Swaps
                                                         </h3>
                                                         <p class="text-slate-400">
                                                             Capitalize on Solana’s lightning-fast transaction speeds and low fees. Trades execute in milliseconds for maximum efficiency.
@@ -638,16 +660,16 @@
                         <!-- Section header -->
                         <div class="max-w-3xl mx-auto text-center pb-12 md:pb-20">
                             <div>
-                                <div
-                                    class="inline-flex font-medium bg-clip-text text-transparent bg-gradient-to-r from-purple-500 to-purple-200 pb-3">
-                                    The security first platform</div>
+                                <div class="inline-flex font-medium bg-clip-text text-transparent bg-gradient-to-r from-purple-500 to-purple-200 pb-3">
+                                    Built with Security in Mind
+                                </div>
                             </div>
-                            <h2
-                                class="h2 bg-clip-text text-transparent bg-gradient-to-r from-slate-200/60 via-slate-200 to-slate-200/60 pb-4">
-                                Spot issues faster</h2>
-                            <p class="text-lg text-slate-400">All the lorem ipsum generators on the Internet tend to
-                                repeat predefined chunks as necessary, making this the first true generator on the
-                                Internet.</p>
+                            <h2 class="h2 bg-clip-text text-transparent bg-gradient-to-r from-slate-200/60 via-slate-200 to-slate-200/60 pb-4">
+                                Trade with Peace of Mind
+                            </h2>
+                            <p class="text-lg text-slate-400">
+                                Experience secure, reliable trading automation on Solana. Our platform employs advanced security measures and real-time monitoring to protect your trades while maintaining high-speed execution.
+                            </p>
                         </div>
 
                         <div class="max-w-3xl mx-auto">
@@ -710,14 +732,16 @@
                             <div>
                                 <div
                                     class="inline-flex font-medium bg-clip-text text-transparent bg-gradient-to-r from-purple-500 to-purple-200 pb-3">
-                                    The security first platform</div>
+                                    Start Trading Smarter Today
+                                </div>
                             </div>
                             <h2
                                 class="h2 bg-clip-text text-transparent bg-gradient-to-r from-slate-200/60 via-slate-200 to-slate-200/60 pb-4">
-                                Take control of your business</h2>
-                            <p class="text-lg text-slate-400 mb-8">All the lorem ipsum generators on the Internet tend
-                                to repeat predefined chunks as necessary, making this the first true generator on the
-                                Internet.</p>
+                                Automate Your Trading Success
+                            </h2>
+                            <p class="text-lg text-slate-400 mb-8">
+                                Join traders who are already leveraging our platform to execute automated Solana trades. Set up your first strategy in minutes and let your trading run on autopilot while you focus on what matters most.
+                            </p>
                             <div>
                                 <a class="btn text-slate-900 bg-gradient-to-r from-white/80 via-white to-white/80 hover:bg-white transition duration-150 ease-in-out group"
                                     href="#0">
