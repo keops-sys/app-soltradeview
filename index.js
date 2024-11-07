@@ -203,45 +203,47 @@ async function sendAndConfirmTransaction({ connection, serializedTransaction, bl
   const abortSignal = controller.signal;
   const maxRetries = 3;
 
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      // Get fresh blockhash for each attempt
-      const latestBlockhash = await connection.getLatestBlockhash('confirmed');
-      
-      const signature = await connection.sendRawTransaction(
-        serializedTransaction,
-        {
-          ...SEND_OPTIONS,
-          preflightCommitment: 'confirmed'
+  try {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // Get fresh blockhash for each attempt
+        const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+        
+        const signature = await connection.sendRawTransaction(
+          serializedTransaction,
+          {
+            ...SEND_OPTIONS,
+            preflightCommitment: 'confirmed'
+          }
+        );
+        console.log(`Attempt ${attempt + 1}: Transaction sent. Signature:`, signature);
+
+        // Start resender in background
+        abortableResender(connection, serializedTransaction, abortSignal);
+
+        // Wait for confirmation with shorter timeout
+        const confirmation = await connection.confirmTransaction({
+          signature,
+          blockhash: latestBlockhash.blockhash,
+          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight
+        }, 'confirmed');
+
+        if (confirmation.value.err) {
+          throw new Error(`Transaction failed: ${confirmation.value.err}`);
         }
-      );
-      console.log(`Attempt ${attempt + 1}: Transaction sent. Signature:`, signature);
 
-      // Start resender in background
-      abortableResender(connection, serializedTransaction, abortSignal);
-
-      // Wait for confirmation with shorter timeout
-      const confirmation = await connection.confirmTransaction({
-        signature,
-        blockhash: latestBlockhash.blockhash,
-        lastValidBlockHeight: latestBlockhash.lastValidBlockHeight
-      }, 'confirmed');
-
-      if (confirmation.value.err) {
-        throw new Error(`Transaction failed: ${confirmation.value.err}`);
+        console.log(`Transaction successful: https://solscan.io/tx/${signature}`);
+        return signature;
+      } catch (error) {
+        console.error(`Attempt ${attempt + 1} failed:`, error);
+        if (attempt === maxRetries - 1) throw error;
+        // Wait before retry
+        await wait(2000);
       }
-
-      console.log(`Transaction successful: https://solscan.io/tx/${signature}`);
-      return signature;
-    } catch (error) {
-      console.error(`Attempt ${attempt + 1} failed:`, error);
-      if (attempt === maxRetries - 1) throw error;
-      // Wait before retry
-      await wait(2000);
     }
+  } finally {
+    controller.abort();
   }
-} finally {
-  controller.abort();
 }
 
 /**
