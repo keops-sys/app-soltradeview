@@ -35,7 +35,7 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const connection = new Connection('https://solana-mainnet.core.chainstack.com/514be15fa4a3676212b0f8f2f11ab308');
+const connection = new Connection('https://thrilling-red-tree.solana-mainnet.quiknode.pro/392c7c4a3140c4fcef39f1be375947284e2f799c');
 const wallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIVATE_KEY || '')));
 
 const INPUT_MINT = 'So11111111111111111111111111111111111111112'; // SOL
@@ -46,7 +46,7 @@ const SEND_OPTIONS = {
   skipPreflight: true,
   maxRetries: 3,
   computeUnits: 1_000_000,    // Maximum compute units
-  priorityFee: 10_000_000,    // Priority fee in microlamports (0.01 SOL)
+  priorityFee: 10_001_000,    // Priority fee in microlamports (0.01 SOL)
 };
 
 async function calculateTradeAmount(inputMint, action, quote) {
@@ -207,6 +207,7 @@ async function sendAndConfirmTransaction({ connection, serializedTransaction, bl
     console.log('Transaction sent. Signature:', signature);
 
     abortableResender(connection, serializedTransaction, abortSignal);
+    console.log('Transaction confirm:', blockhashWithExpiryBlockHeight);
 
     await connection.confirmTransaction(
       {
