@@ -44,6 +44,9 @@ const SLIPPAGE_BPS = 300; // 3%
 
 const SEND_OPTIONS = {
   skipPreflight: true,
+  maxRetries: 3,
+  computeUnits: 1_000_000,    // Maximum compute units
+  priorityFee: 10_000_000,    // Priority fee in microlamports (0.01 SOL)
 };
 
 async function calculateTradeAmount(inputMint, action, quote) {
