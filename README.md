@@ -1,3 +1,6 @@
+npx nodemon index.js
+
+
 
 Create a .env file in the root of the project and add the following:
 ```
