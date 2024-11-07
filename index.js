@@ -1,5 +1,8 @@
 import { PostHog } from 'posthog-node'
-
+const client = new PostHog(
+  'phc_bSVQPOlxikcyh0ScYCZQNpCg6guWnYvVwAd2e5z8iHz',
+  { host: 'https://eu.i.posthog.com' }
+)
 import express from 'express';
 import { fileURLToPath } from 'url';
 import path from 'path';
