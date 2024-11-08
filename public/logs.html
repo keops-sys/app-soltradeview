@@ -205,65 +205,31 @@
         const fetchLogs = async () => {
             try {
                 const response = await fetch('/api/logs');
-                const data = await response.text();
+                const data = await response.json();
                 
-                // Convert the log string into an array of log objects
-                const tradeLogs = data
-                    .split('\n')
-                    .filter(line => line.trim())
-                    .map(line => {
-                        try {
-                            const match = line.match(/\[(.*?)\] (\w+): (.*)/);
-                            if (match) {
-                                const [, timestamp, level, rest] = match;
-                                let message = rest;
-                                let metadata = {};
-
-                                // Try to extract metadata if it exists
-                                const metadataStart = rest.indexOf('{');
-                                if (metadataStart !== -1) {
-                                    message = rest.substring(0, metadataStart).trim();
-                                    try {
-                                        metadata = JSON.parse(rest.substring(metadataStart));
-                                    } catch (e) {
-                                        console.warn('Failed to parse metadata:', e);
-                                    }
-                                }
-
-                                return {
-                                    timestamp,
-                                    level,
-                                    message,
-                                    metadata
-                                };
-                            }
-                            return null;
-                        } catch (e) {
-                            console.error('Error parsing log line:', e);
-                            return null;
-                        }
-                    })
-                    .filter(log => log !== null);
-
-                console.log('Parsed trade logs:', tradeLogs); // Debug log
+                console.log('Raw data:', data); // Debug log
+                
+                // Convert the data into our required format
+                const tradeLogs = Array.isArray(data) ? data : [data];
+                
+                console.log('Processed trade logs:', tradeLogs); // Debug log
                 
                 const tradeLogsBody = document.querySelector('#tradeLogs tbody');
                 tradeLogsBody.innerHTML = tradeLogs
                     .map((log, index) => {
-                        const isSuccess = log.message.includes('successfully');
-                        const isError = log.message.includes('failed');
-                        const isPending = log.message.includes('received');
+                        const isSuccess = log.type === 'SUCCESS' || log.message?.includes('successfully');
+                        const isError = log.type === 'ERROR' || log.message?.includes('failed');
+                        const isPending = log.type === 'INFO' || log.message?.includes('received');
                         
                         const statusClass = isSuccess ? 'bg-green-500/20 text-green-400' :
                                                   isError ? 'bg-red-500/20 text-red-400' :
                                                   'bg-orange-500/20 text-orange-400';
                         
                         const pulseClass = isPending ? 'pulse' : '';
+                        
+                        // Extract metadata from the correct location
                         const metadata = log.metadata || {};
                         const request = metadata.request || {};
-
-                        // Use request data if available, otherwise use metadata
-                        const tradeData = request.ticker ? request : metadata;
                         
                         return `
                             <tr class="border-b border-gray-700 hover:bg-gray-700/50 transition-colors duration-150 cursor-pointer" 
@@ -279,10 +245,10 @@
                                         </span>
                                     </div>
                                 </td>
-                                <td class="px-6 py-3">${log.message}</td>
+                                <td class="px-6 py-3">${log.message || ''}</td>
                                 <td class="px-6 py-3">
-                                    <span class="${tradeData.action === 'buy' ? 'text-green-400' : 'text-red-400'}">
-                                        ${tradeData.action ? tradeData.action.toUpperCase() : 'N/A'}
+                                    <span class="${metadata.action === 'buy' ? 'text-green-400' : 'text-red-400'}">
+                                        ${metadata.action ? metadata.action.toUpperCase() : 'N/A'}
                                     </span>
                                 </td>
                             </tr>
@@ -299,13 +265,13 @@
                                                     </div>
                                                     <div class="flex items-center space-x-2">
                                                         <span class="text-gray-400">Direction:</span>
-                                                        <span class="${tradeData.action === 'buy' ? 'text-green-400' : 'text-red-400'}">
-                                                            ${tradeData.action ? tradeData.action.toUpperCase() : 'N/A'}
+                                                        <span class="${metadata.action === 'buy' ? 'text-green-400' : 'text-red-400'}">
+                                                            ${metadata.action ? metadata.action.toUpperCase() : 'N/A'}
                                                         </span>
                                                     </div>
                                                     <div class="flex items-center space-x-2">
                                                         <span class="text-gray-400">Position Size:</span>
-                                                        <span class="text-white">${tradeData.position_size || 'N/A'}</span>
+                                                        <span class="text-white">${request.position_size || metadata.position_size || 'N/A'}</span>
                                                     </div>
                                                     ${metadata.txHash ? `
                                                     <div class="flex items-center space-x-2">
@@ -343,7 +309,7 @@
                     .join('');
 
                 // Update stats
-                const errorLogs = tradeLogs.filter(log => log.message.includes('failed'));
+                const errorLogs = tradeLogs.filter(log => log.type === 'ERROR' || log.message?.includes('failed'));
                 updateStats(tradeLogs, errorLogs);
 
             } catch (error) {
