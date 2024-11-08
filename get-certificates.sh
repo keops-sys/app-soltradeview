@@ -30,31 +30,41 @@ generate_dev_certs() {
 fetch_prod_certs() {
     log "Fetching production certificates..."
     
+    ACME_SH="$HOME/.acme.sh/acme.sh"
+    
     # Check if acme.sh is installed
-    if ! command -v acme.sh &> /dev/null; then
-        error "acme.sh is not installed"
+    if [ ! -f "$ACME_SH" ]; then
+        error "acme.sh is not installed. Please install it first:"
+        error "curl https://get.acme.sh | sh -s email=your-email@soltradeview.com"
         exit 1
     fi
 
-    # Revoke existing certificate if it exists
-    acme.sh --revoke -d soltradeview.com || warn "No certificate to revoke or revocation failed"
+    # Stop any services using port 80
+    log "Stopping services using port 80..."
+    sudo systemctl stop nginx || warn "No nginx service found"
 
     # Generate new certificate
-    acme.sh --issue --standalone \
+    $ACME_SH --issue --standalone \
         -d soltradeview.com \
         -d www.soltradeview.com \
         -d app.soltradeview.com \
         || { error "Failed to generate certificates"; exit 1; }
 
     # Copy certificates to project
-    local cert_source="/root/.acme.sh/soltradeview.com_ecc"
+    local cert_source="$HOME/.acme.sh/soltradeview.com_ecc"
     local cert_dest="certs/production"
 
-    cp "${cert_source}/soltradeview.com.key" "${cert_dest}/" \
-        && cp "${cert_source}/fullchain.cer" "${cert_dest}/" \
-        && cp "${cert_source}/ca.cer" "${cert_dest}/" \
+    mkdir -p "$cert_dest"
+    
+    cp "$cert_source/soltradeview.com.key" "$cert_dest/" \
+        && cp "$cert_source/fullchain.cer" "$cert_dest/" \
+        && cp "$cert_source/ca.cer" "$cert_dest/" \
         && log "Production certificates copied successfully" \
         || { error "Failed to copy certificates"; exit 1; }
+
+    # Restart services
+    log "Restarting services..."
+    sudo systemctl start nginx || warn "No nginx service found"
 }
 
 # Main execution
