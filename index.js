@@ -20,6 +20,7 @@ import {
 } from '@solana/web3.js';
 import { Wallet } from '@project-serum/anchor';
 import bs58 from 'bs58';
+dotenv.config();
 
 // Validate required environment variables
 const requiredEnvVars = [
@@ -104,7 +105,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 
-dotenv.config();
 
 const app = express();
 app.use(express.json());
