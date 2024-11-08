@@ -1,3 +1,8 @@
+import express from 'express';
+import path from 'path';
+import fs from 'fs';
+import https from 'https';
+import http from 'node:http';
 import { PostHog } from 'posthog-node'
 import { logger } from './utils/logger.js';
 import { EventEmitter } from 'events';
@@ -49,12 +54,7 @@ client.capture({
   }
 })
 
-import express from 'express';
-import { fileURLToPath } from 'url';
-import path from 'path';
-import fs from 'fs';
-import https from 'https';
-import http from 'node:http';
+
 // Load SSL certificates only in production
 const getSSLCredentials = () => {
   if (process.env.NODE_ENV !== 'production') {
