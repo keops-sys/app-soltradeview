@@ -29,7 +29,7 @@ import {
   PublicKey,
   TransactionExpiredBlockheightExceededError,
   LAMPORTS_PER_SOL,
-  RateLimitError,
+  RateLimitError
 } from '@solana/web3.js';
 import dotenv from 'dotenv';
 import { Wallet } from '@project-serum/anchor';
