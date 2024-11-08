@@ -177,6 +177,13 @@
     </div>
 
     <script>
+        // Add this at the top of your script section
+        window.addEventListener('error', (e) => {
+            if (e.message.includes('Receiving end does not exist')) {
+                e.stopPropagation();
+            }
+        }, true);
+
         // Helper functions - place these at the top of your script
         const formatTimestamp = (timestamp) => {
             if (!timestamp) return 'N/A';
