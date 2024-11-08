@@ -266,22 +266,11 @@
                         
                         const pulseClass = !isSuccess && !isError ? 'pulse' : '';
                         
-                        // Parse the timestamp
-                        const date = new Date(log.timestamp);
-                        const hours = String(date.getHours()).padStart(2, '0');
-                        const minutes = String(date.getMinutes()).padStart(2, '0');
-                        const seconds = String(date.getSeconds()).padStart(2, '0');
-                        const milliseconds = String(date.getMilliseconds()).padStart(3, '0');
-                        const month = String(date.getMonth() + 1).padStart(2, '0');
-                        const day = String(date.getDate()).padStart(2, '0');
-                        const year = date.getFullYear();
-                        
                         return `
                             <tr class="border-b border-gray-700 hover:bg-gray-700/50 transition-colors duration-150 cursor-pointer" 
                                 onclick="toggleDetails(${index})">
                                 <td class="px-6 py-3 font-mono whitespace-nowrap">
-                                    <span class="text-white">${hours}:${minutes}:${seconds}.${milliseconds}</span>
-                                    <span class="text-gray-400 ml-2">${month}/${day}/${year}</span>
+                                    ${formatTimestamp(log.timestamp)}
                                 </td>
                                 <td class="px-6 py-3">
                                     <div class="flex items-center space-x-2">
@@ -292,21 +281,57 @@
                                     </div>
                                 </td>
                                 <td class="px-6 py-3">${log.message}</td>
-                                <td class="px-6 py-3 font-mono">
-                                    ${formatMetadata(log.metadata)}
+                                <td class="px-6 py-3">
+                                    <span class="${log.metadata?.action === 'buy' ? 'text-green-400' : 'text-red-400'}">
+                                        ${log.metadata?.action?.toUpperCase() || 'N/A'}
+                                    </span>
                                 </td>
                             </tr>
                             <tr class="hidden" data-details="${index}">
                                 <td colspan="4" class="px-6 py-4 bg-gray-700/30">
-                                    <div class="space-y-2">
+                                    <div class="space-y-4">
                                         <div class="grid grid-cols-2 gap-4">
                                             <div>
-                                                <h4 class="text-sm font-semibold text-gray-400">Request Details</h4>
-                                                <div class="mt-1 text-sm">
-                                                    <div>Action: <span class="${log.metadata?.action === 'buy' ? 'text-green-400' : 'text-red-400'}">${log.metadata?.action?.toUpperCase() || 'N/A'}</span></div>
+                                                <h4 class="text-sm font-semibold text-gray-400 mb-2">Trade Details</h4>
+                                                <div class="space-y-2 text-sm">
+                                                    <div class="flex items-center space-x-2">
+                                                        <span class="text-gray-400">Pair:</span>
+                                                        <span class="text-cyan-400">${log.metadata?.pair || 'N/A'}</span>
+                                                    </div>
+                                                    <div class="flex items-center space-x-2">
+                                                        <span class="text-gray-400">Direction:</span>
+                                                        <span class="${log.metadata?.action === 'buy' ? 'text-green-400' : 'text-red-400'}">
+                                                            ${log.metadata?.action?.toUpperCase() || 'N/A'}
+                                                        </span>
+                                                    </div>
+                                                    <div class="flex items-center space-x-2">
+                                                        <span class="text-gray-400">USDC Amount:</span>
+                                                        <span class="text-white">${formatUSDC(log.metadata?.usdc_amount)}</span>
+                                                    </div>
+                                                    <div class="flex items-center space-x-2">
+                                                        <span class="text-gray-400">SOL Amount:</span>
+                                                        <span class="text-white">${formatSOL(log.metadata?.sol_amount)}</span>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div>    
+                                            <div>
+                                                <h4 class="text-sm font-semibold text-gray-400 mb-2">Performance Metrics</h4>
+                                                <div class="space-y-2 text-sm">
+                                                    <div class="flex items-center space-x-2">
+                                                        <span class="text-gray-400">Execution Time:</span>
+                                                        <span class="text-yellow-400">${formatExecutionTime(log.metadata?.executionTime)}</span>
+                                                    </div>
+                                                    <div class="flex items-center space-x-2">
+                                                        <span class="text-gray-400">Average Price:</span>
+                                                        <span class="text-white">${formatPrice(log.metadata?.average_price)}</span>
+                                                    </div>
+                                                    ${isError ? `
+                                                    <div class="mt-4">
+                                                        <span class="text-gray-400">Error Details:</span>
+                                                        <pre class="mt-1 text-red-400 text-xs overflow-x-auto">${log.metadata?.error || 'Unknown error'}</pre>
+                                                    </div>
+                                                    ` : ''}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -365,7 +390,7 @@
         // Helper function to format execution time
         const formatExecutionTime = (executionTime) => {
             if (!executionTime) return 'N/A';
-            return `<span class="text-yellow-400">${executionTime}</span>`;
+            return time.includes('ms') ? time : `${time}ms`;
         };
 
         // Helper function to format metadata
@@ -427,6 +452,27 @@
                 parentRow.classList.remove('expanded-row');
             }
         }
+
+        // Add these helper functions for formatting
+        const formatUSDC = (amount) => {
+            if (!amount) return 'N/A';
+            return `$${parseFloat(amount).toFixed(2)}`;
+        };
+
+        const formatSOL = (amount) => {
+            if (!amount) return 'N/A';
+            return `${parseFloat(amount).toFixed(4)} SOL`;
+        };
+
+        const formatPrice = (price) => {
+            if (!price) return 'N/A';
+            return `$${parseFloat(price).toFixed(2)}`;
+        };
+
+        const formatExecutionTime = (time) => {
+            if (!time) return 'N/A';
+            return time.includes('ms') ? time : `${time}ms`;
+        };
     </script>
 </body>
 </html> 
