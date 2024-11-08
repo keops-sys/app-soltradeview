@@ -110,22 +110,6 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Middleware to ensure www prefix
-const ensureWWW = (req, res, next) => {
-  // Get the host without port number if present
-  const host = req.headers.host.split(':')[0];
-  
-  if (!host.startsWith('www.')) {
-    // Redirect non-www to www while maintaining protocol
-    const protocol = req.protocol;
-    return res.redirect(301, `${protocol}://www.${host}${req.url}`);
-  }
-  next();
-};
-
-// Apply www redirect middleware to main app
-app.use(ensureWWW);
-
 // Create an EventEmitter for RPC events
 const rpcEvents = new EventEmitter();
 
@@ -511,14 +495,12 @@ if (process.env.NODE_ENV === 'production') {
   // HTTP server for redirects
   const httpApp = express();
   httpApp.use((req, res) => {
-    const host = req.headers.host.split(':')[0];
-    const wwwHost = host.startsWith('www.') ? host : `www.${host}`;
-    return res.redirect(301, `https://${wwwHost}${req.url}`);
+    return res.redirect(301, `https://${req.headers.host}${req.url}`);
   });
 
   // Start HTTP server
   http.createServer(httpApp).listen(80, () => {
-    console.log(chalk.green('HTTP Server running on port 80 and redirecting to HTTPS/WWW'));
+    console.log(chalk.green('HTTP Server running on port 80 and redirecting to HTTPS'));
   });
 
   // Start HTTPS server
