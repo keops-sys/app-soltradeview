@@ -106,14 +106,14 @@ const createRateLimitedConnection = () => {
   const maxRetries = 3;
   const baseDelay = 1000; // 1 second
 
-  return new Connection('https://api.mainnet-beta.solana.com', {
+  return new Connection(process.env.SOLANA_RPC_ENDPOINT, {
     commitment: 'confirmed',
     async fetchMiddleware(url, options, fetch) {
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
           return await fetch(url, options);
         } catch (error) {
-          if (error) {
+          if (error instanceof RateLimitError) {
             const delay = baseDelay * Math.pow(2, attempt);
             console.log(`Rate limit hit, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
             await new Promise(resolve => setTimeout(resolve, delay));
