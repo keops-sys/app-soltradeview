@@ -368,7 +368,7 @@ async function sendAndConfirmTransaction({ connection, serializedTransaction, bl
           signature,
           blockhash: latestBlockhash.blockhash,
           lastValidBlockHeight: latestBlockhash.lastValidBlockHeight
-        }, 'confirmed');
+        }, 'finalized');
 
         if (confirmation.value.err) {
           throw new Error(`Transaction failed: ${confirmation.value.err}`);
