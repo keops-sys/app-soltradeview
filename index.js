@@ -490,36 +490,7 @@ const displayStartupBanner = (port) => {
     }
 };
 
-// Server setup based on environment
-if (process.env.NODE_ENV === 'production') {
-  // HTTP server for redirects
-  const httpApp = express();
-  httpApp.use((req, res) => {
-    return res.redirect(301, `https://${req.headers.host}${req.url}`);
-  });
 
-  // Start HTTP server
-  http.createServer(httpApp).listen(80, () => {
-    console.log(chalk.green('HTTP Server running on port 80 and redirecting to HTTPS'));
-  });
-
-  // Start HTTPS server
-  https.createServer(credentials, app).listen(443, () => {
-    console.log(chalk.green('HTTPS Server running on port 443'));
-    console.log(chalk.yellow(`Webhook URL: https://${process.env.DOMAIN}/webhook`));
-    console.log(chalk.yellow('Dashboard:', `https://${process.env.DOMAIN}/dashboard.html`));
-
-  });
-} else {
-  // Development server
-  app.listen(3000, () => {
-    console.log(chalk.green('Development server running on port 3000'));
-    console.log(chalk.red('Webhook URL: http://localhost:3000/webhook'));
-    console.log('\nAvailable endpoints:');
-    console.log(chalk.yellow('- Dashboard:', 'http://localhost:3000/dashboard.html'));
-    console.log(chalk.yellow('- API:', 'http://localhost:3000/api/trades'));
-  });
-}
 
 // Ensure events are sent before server shutdown
 process.on('SIGTERM', async () => {
@@ -594,3 +565,88 @@ app.get('/api/trades', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch trade data' });
     }
 });
+
+app.get('/api/logs', async (req, res) => {
+  try {
+      const errorLogPath = path.join(__dirname, '../logs/error.log');
+      const tradeLogPath = path.join(__dirname, '../logs/trades.log');
+      
+      const [errorLogs, tradeLogs] = await Promise.all([
+          fs.readFile(errorLogPath, 'utf8'),
+          fs.readFile(tradeLogPath, 'utf8')
+      ]);
+
+      // Parse logs
+      const parsedErrorLogs = errorLogs
+          .split('\n')
+          .filter(Boolean)
+          .map(line => {
+              const [timestamp, level, ...rest] = line.split('] ');
+              return {
+                  timestamp: timestamp.slice(1),
+                  type: level.slice(0, -1),
+                  ...JSON.parse(rest.join('] '))
+              };
+          });
+
+      const parsedTradeLogs = tradeLogs
+          .split('\n')
+          .filter(Boolean)
+          .map(line => {
+              const [timestamp, level, ...rest] = line.split('] ');
+              return {
+                  timestamp: timestamp.slice(1),
+                  type: level.slice(0, -1),
+                  ...JSON.parse(rest.join('] '))
+              };
+          });
+
+      res.json({
+          errorLogs: parsedErrorLogs,
+          tradeLogs: parsedTradeLogs
+      });
+  } catch (error) {
+      console.error('Error loading logs:', error);
+      res.status(500).json({ error: 'Failed to load logs' });
+  }
+});
+
+// Serve the logs page
+app.get('/logs', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/logs.html'));
+});
+
+
+
+
+
+// Server setup based on environment
+if (process.env.NODE_ENV === 'production') {
+  // HTTP server for redirects
+  const httpApp = express();
+  httpApp.use((req, res) => {
+    return res.redirect(301, `https://${req.headers.host}${req.url}`);
+  });
+
+  // Start HTTP server
+  http.createServer(httpApp).listen(80, () => {
+    console.log(chalk.green('HTTP Server running on port 80 and redirecting to HTTPS'));
+  });
+
+  // Start HTTPS server
+  https.createServer(credentials, app).listen(443, () => {
+    console.log(chalk.green('HTTPS Server running on port 443'));
+    console.log(chalk.yellow(`Webhook URL: https://${process.env.DOMAIN}/webhook`));
+    console.log(chalk.yellow('Dashboard:', `https://${process.env.DOMAIN}/dashboard.html`));
+
+  });
+} else {
+  // Development server
+  app.listen(3000, () => {
+    console.log(chalk.green('Development server running on port 3000'));
+    console.log(chalk.red('Webhook URL: http://localhost:3000/webhook'));
+    console.log('\nAvailable endpoints:');
+    console.log(chalk.yellow('- Dashboard:', 'http://localhost:3000/dashboard.html'));
+    console.log(chalk.yellow('- API:', 'http://localhost:3000/api/trades'));
+  });
+}
