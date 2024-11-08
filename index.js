@@ -1,4 +1,5 @@
 import { PostHog } from 'posthog-node'
+import { logger } from './utils/logger.js';
 
 // Initialize PostHog with debug mode
 const client = new PostHog(
@@ -342,125 +343,81 @@ async function sendAndConfirmTransaction({ connection, serializedTransaction, bl
  * Handle incoming swap requests via webhook
  */
 app.post('/webhook', async (req, res) => {
+  const startTime = Date.now();
+  
   try {
-    // Track webhook received
-    client.capture({
-      distinctId: 'webhook',
-      event: 'webhook_received',
-      properties: {
-        action: req.body.action,
-        order_size: req.body.order_size,
-        timestamp: new Date().toISOString()
-      }
-    })
-
-    console.log('Received alert, starting swap process.');
-    console.log('Request body:', JSON.stringify(req.body, null, 2));
-
-    const { action, order_size, position_size } = req.body;
-
-    // Validate required fields
-    if (!action || !order_size) {
-      throw new Error('Missing required fields: action and order_size');
-    }
-
-    if (!['buy', 'sell'].includes(action)) {
-      throw new Error('Invalid action: must be "buy" or "sell"');
-    }
-
-    // Get initial quote to determine price and amounts
-    let initialAmount = action === 'buy' ? 1_000_000 : 1_000_000_000; // 1 USDC or 1 SOL for price check
-    console.log('Getting initial price quote with amount:', initialAmount);
-    const priceQuote = await getQuote(initialAmount, action);
-    console.log('Price quote response:', priceQuote);
+    const { action, amount, token, price } = req.body;
     
-    // Calculate actual trade amount based on position size or percentage
-    let tradeAmount;
-    if (order_size === '100%') {
-      console.log('Processing 100% order size...');
-      // Use maximum available balance
-      if (action === 'buy') {
-        console.log('Creating quote for buying SOL with max USDC');
-        const quote = {
-          outputMint: INPUT_MINT,
-          inAmount: Number.MAX_SAFE_INTEGER,
-          outAmount: 0
-        };
-        tradeAmount = await calculateTradeAmount(OUTPUT_MINT, action, quote);
-      } else {
-        console.log('Creating quote for selling max SOL');
-        const quote = {
-          inputMint: INPUT_MINT,
-          inAmount: Number.MAX_SAFE_INTEGER,
-          outAmount: 0
-        };
-        tradeAmount = await calculateTradeAmount(INPUT_MINT, action, quote);
-      }
-    } else {
-      console.log('Processing fixed position size:', position_size);
-      // Use position_size if specified
-      if (action === 'buy') {
-        tradeAmount = Math.floor(parseFloat(position_size) * 1e6); // Convert USDC to decimals
-        console.log('Converted USDC amount:', tradeAmount);
-      } else {
-        tradeAmount = Math.floor(parseFloat(position_size) * 1e9); // Convert SOL to lamports
-        console.log('Converted SOL amount:', tradeAmount);
-      }
-    }
-
-    console.log('Final calculated trade amount:', tradeAmount);
-    if (tradeAmount === 0) {
-      throw new Error('Trade amount calculation failed. Check balances and parameters.');
-    }
-
-    console.log(`Proceeding with trade: ${tradeAmount} ${action === 'buy' ? 'USDC' : 'lamports'}`);
-
-    // Get final quote for the actual trade amount
-    const quoteResponse = await getQuote(tradeAmount, action);
-    console.log('Quote response:', quoteResponse);
-
-    const swapTransaction = await getSwapTransaction(quoteResponse);
-    console.log('Swap transaction received.');
-
-    const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
-    const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
-
-    const latestBlockhash = await connection.getLatestBlockhash();
-    transaction.message.recentBlockhash = latestBlockhash.blockhash;
-    transaction.sign([wallet.payer]);
-
-    const serializedTransaction = transaction.serialize();
-
-    await sendAndConfirmTransaction({
-      connection,
-      serializedTransaction,
-      blockhashWithExpiryBlockHeight: latestBlockhash,
+    // Log trade request
+    logger.info('Trade request received', {
+      action,
+      amount,
+      token,
+      price,
+      timestamp: new Date().toISOString()
     });
 
-    // Track successful trade
+    // Check balance
+    const balance = await connection.getBalance(wallet.publicKey);
+    logger.debug('Current balance', {
+      balance: balance / LAMPORTS_PER_SOL,
+      minRequired: MIN_SOL_BALANCE
+    });
+
+    if (balance / LAMPORTS_PER_SOL < MIN_SOL_BALANCE) {
+      logger.error('Insufficient balance', {
+        balance: balance / LAMPORTS_PER_SOL,
+        minRequired: MIN_SOL_BALANCE
+      });
+      throw new Error('Insufficient balance');
+    }
+
+    // Execute trade
+    const result = await executeTrade(action, amount, token, price);
+    
+    // Calculate execution time
+    const executionTime = Date.now() - startTime;
+    
+    // Log successful trade
+    logger.info('Trade executed successfully', {
+      action,
+      amount,
+      token,
+      price,
+      executionTime: `${executionTime}ms`,
+      txHash: result.signature,
+      blockTime: result.blockTime,
+      fee: result.fee,
+      slot: result.slot
+    });
+
+    // Track in PostHog
     client.capture({
-      distinctId: 'webhook',
+      distinctId: 'trade',
       event: 'trade_completed',
       properties: {
-        action: req.body.action,
-        amount: tradeAmount,
-        timestamp: new Date().toISOString()
+        action,
+        amount,
+        token,
+        price,
+        executionTime,
+        txHash: result.signature
       }
-    })
+    });
 
-    res.json({ status: 'success' });
+    res.json({ status: 'success', data: result });
+
   } catch (error) {
-    // Track errors
-    client.capture({
-      distinctId: 'webhook',
-      event: 'trade_error',
-      properties: {
-        error: error.message,
-        timestamp: new Date().toISOString()
-      }
-    })
+    const executionTime = Date.now() - startTime;
     
-    console.error('Error processing swap:', error);
+    // Log error with full context
+    logger.error('Trade execution failed', {
+      error: error.message,
+      stack: error.stack,
+      executionTime: `${executionTime}ms`,
+      request: req.body
+    });
+
     res.status(500).json({ status: 'error', message: error.message });
   }
 });
@@ -511,3 +468,70 @@ process.on('SIGTERM', async () => {
   await client.shutdown()
   process.exit(0)
 })
+
+// Log rate limit hits
+connection.on('rateLimitHit', (retryIn) => {
+  logger.warn('Rate limit hit', {
+    retryIn: `${retryIn}ms`,
+    endpoint: process.env.SOLANA_RPC_ENDPOINT
+  });
+});
+
+// Log application startup
+process.on('SIGTERM', () => {
+  logger.info('Application shutting down');
+  process.exit(0);
+});
+
+// Uncaught exception handler
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught exception', {
+    error: error.message,
+    stack: error.stack
+  });
+  process.exit(1);
+});
+
+// Log startup
+logger.info('Application started', {
+  env: process.env.NODE_ENV,
+  rpcEndpoint: process.env.SOLANA_RPC_ENDPOINT
+});
+
+// API endpoint for dashboard
+app.get('/api/trades', async (req, res) => {
+    try {
+        // Read and parse the trades log file
+        const trades = await new Promise((resolve, reject) => {
+            const results = [];
+            createReadStream(path.join(process.cwd(), 'logs', 'trades.log'))
+                .pipe(split2())
+                .on('data', (line) => {
+                    try {
+                        const log = JSON.parse(line);
+                        if (log.message.includes('Trade executed successfully')) {
+                            results.push({
+                                timestamp: log.timestamp,
+                                action: log.metadata.action,
+                                amount: log.metadata.amount,
+                                token: log.metadata.token,
+                                price: log.metadata.price,
+                                executionTime: log.metadata.executionTime,
+                                txHash: log.metadata.txHash,
+                                status: 'success'
+                            });
+                        }
+                    } catch (e) {
+                        // Skip invalid lines
+                    }
+                })
+                .on('end', () => resolve(results))
+                .on('error', reject);
+        });
+
+        res.json(trades);
+    } catch (error) {
+        logger.error('Error fetching trade data', { error });
+        res.status(500).json({ error: 'Failed to fetch trade data' });
+    }
+});

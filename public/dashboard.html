@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SolTradeView Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">Trading Dashboard</h1>
+            <div class="text-sm text-gray-500">Last updated: <span id="lastUpdate"></span></div>
+        </div>
+
+        <!-- Widgets -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <!-- PNL % Widget -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-600 mb-2">Current PNL %</h3>
+                <div id="pnlPercent" class="text-3xl font-bold"></div>
+            </div>
+            <!-- PNL USD Widget -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-600 mb-2">Current PNL USD</h3>
+                <div id="pnlUsd" class="text-3xl font-bold"></div>
+            </div>
+            <!-- PNL SOL Widget -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-600 mb-2">Current PNL SOL</h3>
+                <div id="pnlSol" class="text-3xl font-bold"></div>
+            </div>
+        </div>
+
+        <!-- Trades Table -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <table id="tradesTable" class="w-full">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Action</th>
+                        <th>Amount</th>
+                        <th>Token</th>
+                        <th>Price</th>
+                        <th>Execution Time</th>
+                        <th>Transaction</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <script src="dashboard.js"></script>
+</body>
+</html> 
