@@ -207,19 +207,20 @@
                 const response = await fetch('/api/logs');
                 const data = await response.json();
                 
-                console.log('Raw data:', data); // Debug log
+                console.log('Raw data:', data);
                 
-                // Convert the data into our required format
-                const tradeLogs = Array.isArray(data) ? data : [data];
+                // Extract tradeLogs from the response
+                const tradeLogs = data.tradeLogs || [];
+                const errorLogs = data.errorLogs || [];
                 
-                console.log('Processed trade logs:', tradeLogs); // Debug log
+                console.log('Trade logs:', tradeLogs);
                 
                 const tradeLogsBody = document.querySelector('#tradeLogs tbody');
                 tradeLogsBody.innerHTML = tradeLogs
                     .map((log, index) => {
-                        const isSuccess = log.type === 'SUCCESS' || log.message?.includes('successfully');
-                        const isError = log.type === 'ERROR' || log.message?.includes('failed');
-                        const isPending = log.type === 'INFO' || log.message?.includes('received');
+                        const isSuccess = log.message?.includes('successfully');
+                        const isError = log.message?.includes('failed');
+                        const isPending = log.message?.includes('received');
                         
                         const statusClass = isSuccess ? 'bg-green-500/20 text-green-400' :
                                                   isError ? 'bg-red-500/20 text-red-400' :
@@ -308,8 +309,7 @@
                     })
                     .join('');
 
-                // Update stats
-                const errorLogs = tradeLogs.filter(log => log.type === 'ERROR' || log.message?.includes('failed'));
+                // Update stats with the correct data
                 updateStats(tradeLogs, errorLogs);
 
             } catch (error) {
@@ -363,14 +363,15 @@
         // Add stats calculation
         const updateStats = (tradeLogs, errorLogs) => {
             const totalTrades = tradeLogs.length;
-            const successfulTrades = tradeLogs.filter(log => log.message.includes('successfully')).length;
+            const successfulTrades = tradeLogs.filter(log => log.message?.includes('successfully')).length;
             const successRate = totalTrades ? ((successfulTrades / totalTrades) * 100).toFixed(1) : 0;
             const errorRate = totalTrades ? ((errorLogs.length / totalTrades) * 100).toFixed(1) : 0;
             
-            // Calculate average execution time
-            const executionTimes = errorLogs
+            // Calculate average execution time from successful and error logs
+            const executionTimes = [...tradeLogs, ...errorLogs]
                 .map(log => parseInt(log.metadata?.executionTime))
                 .filter(time => !isNaN(time));
+            
             const avgTime = executionTimes.length 
                 ? (executionTimes.reduce((a, b) => a + b, 0) / executionTimes.length).toFixed(0)
                 : 0;
