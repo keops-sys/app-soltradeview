@@ -24,6 +24,12 @@ import crypto from 'crypto';
 dotenv.config();
 
 const MIN_SOL_BALANCE = process.env.MIN_SOL_BALANCE || 0.1;
+const PLATFORM_FEE_BPS = 50; // 0.5% fee
+const JUPITER_MAX_RETRIES = 3;
+const JUPITER_BASE_DELAY = 500;
+const SLIPPAGE_BPS = 300; // 3%
+const INPUT_MINT = 'So11111111111111111111111111111111111111112'; // SOL
+const OUTPUT_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'; // USDC
 
 
 
@@ -160,10 +166,6 @@ const createRateLimitedConnection = () => {
 const connection = createRateLimitedConnection();
 const wallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIVATE_KEY || '')));
 
-const INPUT_MINT = 'So11111111111111111111111111111111111111112'; // SOL
-const OUTPUT_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'; // USDC
-const SLIPPAGE_BPS = 300; // 3%
-
 const SEND_OPTIONS = {
   skipPreflight: true,
   maxRetries: 1,
@@ -259,10 +261,6 @@ async function calculateTradeAmount(inputMint, action, quote) {
     return 0;
   }
 }
-
-// Add these constants at the top
-const JUPITER_MAX_RETRIES = 3;
-const JUPITER_BASE_DELAY = 500;
 
 // Update the getQuote function with better rate limit handling
 async function getQuote(amount, action = 'sell') {
