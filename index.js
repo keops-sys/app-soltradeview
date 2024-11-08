@@ -336,11 +336,6 @@ async function sendAndConfirmTransaction({ connection, serializedTransaction, bl
   const controller = new AbortController();
   const abortSignal = controller.signal;
   const maxRetries = 3;
-  const confirmationStrategy = {
-    signature: '',
-    lastValidBlockHeight: 0,
-    timeout: 60000, // 60 second timeout
-  };
 
   try {
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -368,19 +363,47 @@ async function sendAndConfirmTransaction({ connection, serializedTransaction, bl
         }, 'confirmed');
 
         if (confirmation.value.err) {
+          // Get detailed error logs
+          const txLogs = await connection.getTransaction(signature, {
+            maxSupportedTransactionVersion: 0,
+          });
+          
+          logger.error('Transaction failed with confirmation error', {
+            error: confirmation.value.err,
+            logs: txLogs?.meta?.logMessages,
+            signature
+          });
+          
           throw new Error(`Transaction failed: ${confirmation.value.err}`);
         }
 
         console.log(`Transaction successful: https://solscan.io/tx/${signature}`);
         return signature;
       } catch (error) {
+        // Handle SendTransactionError specifically
+        if (error.name === 'SendTransactionError') {
+          const logs = error.logs || [];
+          logger.error('Transaction send error', {
+            error: error.message,
+            logs,
+            attempt: attempt + 1
+          });
+        }
+        
         console.error(`Attempt ${attempt + 1} failed:`, error);
         
         // Check if we should retry
         if (error instanceof TransactionExpiredBlockheightExceededError ||
             error.message.includes('429') ||
-            error.message.includes('Too Many Requests')) {
-          if (attempt === maxRetries - 1) throw error;
+            error.message.includes('Too Many Requests') ||
+            error.message.includes('Internal error')) {  // Added Internal error case
+          if (attempt === maxRetries - 1) {
+            logger.error('Max retries reached', {
+              error: error.message,
+              attempts: maxRetries
+            });
+            throw error;
+          }
           // Exponential backoff
           const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
           console.log(`Retrying in ${delay}ms...`);
