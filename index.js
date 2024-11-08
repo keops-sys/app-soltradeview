@@ -418,12 +418,22 @@ if (process.env.NODE_ENV === 'production') {
   // HTTP server for redirects
   const httpApp = express();
   httpApp.use((req, res) => {
-    res.redirect(`https://${req.headers.host}${req.url}`);
+    // Get the host without port number if present
+    const host = req.headers.host.split(':')[0];
+    
+    // If accessing non-www domain, redirect to www
+    if (!host.startsWith('www.')) {
+      const wwwHost = `www.${host}`;
+      return res.redirect(301, `https://${wwwHost}${req.url}`);
+    }
+    
+    // Otherwise, just redirect to HTTPS
+    return res.redirect(301, `https://${host}${req.url}`);
   });
 
   // Start HTTP server for redirects
   http.createServer(httpApp).listen(80, () => {
-    console.log('HTTP Server running on port 80 and redirecting to HTTPS');
+    console.log('HTTP Server running on port 80 and redirecting to HTTPS/WWW');
   });
 
   // Start HTTPS server
