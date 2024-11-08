@@ -260,11 +260,13 @@ async function calculateTradeAmount(inputMint, action, quote) {
   }
 }
 
-/**
- * Fetch quote from Jupiter API
- */
+// Add these constants at the top
+const JUPITER_MAX_RETRIES = 3;
+const JUPITER_BASE_DELAY = 500;
+
+// Update the getQuote function with better rate limit handling
 async function getQuote(amount, action = 'sell') {
-  const maxRetries = 3;
+  const maxRetries = JUPITER_MAX_RETRIES;
   let lastError;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -273,19 +275,31 @@ async function getQuote(amount, action = 'sell') {
         ? [OUTPUT_MINT, INPUT_MINT]   // For buy: USDC -> SOL
         : [INPUT_MINT, OUTPUT_MINT];  // For sell: SOL -> USDC
 
-      const url = `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=${SLIPPAGE_BPS}`;
-      console.log('Quote URL:', url);
-      
+      const url = `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}\
+&outputMint=${outputMint}\
+&amount=${amount}\
+&slippageBps=${SLIPPAGE_BPS}\
+&platformFeeBps=${PLATFORM_FEE_BPS}`;
+
       const response = await fetch(url);
+      
+      if (response.status === 429) {
+        const delay = JUPITER_BASE_DELAY * Math.pow(2, attempt);
+        console.log(`Rate limit hit, waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
+      
       return await response.json();
     } catch (error) {
       lastError = error;
       if (attempt === maxRetries - 1) throw error;
       
-      const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+      const delay = Math.min(JUPITER_BASE_DELAY * Math.pow(2, attempt), 10000);
       console.log(`Quote attempt ${attempt + 1} failed, retrying in ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
@@ -293,30 +307,53 @@ async function getQuote(amount, action = 'sell') {
   throw lastError;
 }
 
-/**
- * Fetch swap transaction from Jupiter API
- */
+// Update getSwapTransaction with similar rate limit handling
 async function getSwapTransaction(quoteResponse) {
-  try {
-    const response = await fetch('https://quote-api.jup.ag/v6/swap', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        quoteResponse,
-        userPublicKey: wallet.publicKey.toString(),
-        wrapAndUnwrapSol: true,
-        dynamicSlippage: { maxBps: SLIPPAGE_BPS },
-      }),
-    });
-    const swapData = await response.json();
-    if (swapData.error) throw new Error(swapData.error);
-    return swapData.swapTransaction;
-  } catch (error) {
-    console.error('Error fetching swap transaction:', error);
-    throw error;
+  const maxRetries = JUPITER_MAX_RETRIES;
+  let lastError;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await fetch('https://quote-api.jup.ag/v6/swap', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          quoteResponse,
+          userPublicKey: wallet.publicKey.toString(),
+          wrapAndUnwrapSol: true,
+          dynamicComputeUnitLimit: true,
+          prioritizationFeeLamports: 'auto',
+          feeAccount: wallet.publicKey.toString(),
+          dynamicSlippage: { maxBps: SLIPPAGE_BPS }
+        }),
+      });
+
+      if (response.status === 429) {
+        const delay = JUPITER_BASE_DELAY * Math.pow(2, attempt);
+        console.log(`Rate limit hit, waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const swapData = await response.json();
+      if (swapData.error) throw new Error(swapData.error);
+      return swapData.swapTransaction;
+    } catch (error) {
+      lastError = error;
+      if (attempt === maxRetries - 1) throw error;
+      
+      const delay = Math.min(JUPITER_BASE_DELAY * Math.pow(2, attempt), 10000);
+      console.log(`Swap transaction attempt ${attempt + 1} failed, retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
   }
+  throw lastError;
 }
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
