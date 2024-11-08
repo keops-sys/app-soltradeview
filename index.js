@@ -166,9 +166,9 @@ const SLIPPAGE_BPS = 300; // 3%
 
 const SEND_OPTIONS = {
   skipPreflight: true,
-  maxRetries: 3,
+  maxRetries: 1,
   computeUnits: 1_000_000,    
-  priorityFee: 50_000_000,    // Increased priority fee to 0.05 SOL
+  priorityFee: 10_000_000,   // Increased priority fee to 0.1 SOL for better chances
 };
 
 async function calculateTradeAmount(inputMint, action, quote) {
@@ -341,22 +341,29 @@ async function sendAndConfirmTransaction({ connection, serializedTransaction, bl
   try {
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        // Get fresh blockhash for each attempt
+        // Get fresh blockhash for EACH attempt
         const latestBlockhash = await connection.getLatestBlockhash('confirmed');
         
+        // Deserialize and update transaction with new blockhash
+        const transaction = VersionedTransaction.deserialize(serializedTransaction);
+        transaction.message.recentBlockhash = latestBlockhash.blockhash;
+        
+        // Re-sign with updated blockhash
+        transaction.sign([wallet.payer]);
+        const newSerializedTx = transaction.serialize();
+        
         const signature = await connection.sendRawTransaction(
-          serializedTransaction,
+          newSerializedTx,
           {
             ...SEND_OPTIONS,
-            preflightCommitment: 'confirmed'
+            maxRetries: 1, // Reduce internal retries since we're handling retries here
+            skipPreflight: true
           }
         );
+        
         console.log(`Attempt ${attempt + 1}: Transaction sent. Signature:`, signature);
 
-        // Start resender in background
-        const resenderPromise = abortableResender(connection, serializedTransaction, abortSignal);
-
-        // Wait for confirmation with updated parameters
+        // Wait for confirmation with shorter timeout
         const confirmation = await connection.confirmTransaction({
           signature,
           blockhash: latestBlockhash.blockhash,
@@ -364,48 +371,22 @@ async function sendAndConfirmTransaction({ connection, serializedTransaction, bl
         }, 'confirmed');
 
         if (confirmation.value.err) {
-          // Get detailed error logs
-          const txLogs = await connection.getTransaction(signature, {
-            maxSupportedTransactionVersion: 0,
-          });
-          
-          logger.error('Transaction failed with confirmation error', {
-            error: confirmation.value.err,
-            logs: txLogs?.meta?.logMessages,
-            signature
-          });
-          
           throw new Error(`Transaction failed: ${confirmation.value.err}`);
         }
 
         console.log(`✅ Transaction successful: https://solscan.io/tx/${signature}`);
         return signature;
+
       } catch (error) {
-        // Handle SendTransactionError specifically
-        if (error.name === 'SendTransactionError') {
-          const logs = error.logs || [];
-          logger.error('Transaction send error', {
-            error: error.message,
-            logs,
-            attempt: attempt + 1
-          });
-        }
-        
         console.error(`Attempt ${attempt + 1} failed:`, error);
         
         // Check if we should retry
-        if (error instanceof TransactionExpiredBlockheightExceededError ||
-            error.message.includes('429') ||
-            error.message.includes('Too Many Requests') ||
-            error.message.includes('Internal error')) {  // Added Internal error case
-          if (attempt === maxRetries - 1) {
-            logger.error('Max retries reached', {
-              error: error.message,
-              attempts: maxRetries
-            });
-            throw error;
-          }
-          // Exponential backoff
+        if (attempt < maxRetries - 1 && (
+          error instanceof TransactionExpiredBlockheightExceededError ||
+          error.message.includes('Internal error') ||
+          error.message.includes('429') ||
+          error.message.includes('Too Many Requests')
+        )) {
           const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
           console.log(`Retrying in ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
