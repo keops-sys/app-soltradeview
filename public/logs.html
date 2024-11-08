@@ -184,18 +184,37 @@
     </div>
 
     <script>
+        // Timestamp formatting function
+        const formatTimestamp = (isoString) => {
+            const date = new Date(isoString);
+            
+            // Format date components
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const year = date.getFullYear();
+            
+            // Format time components
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            const milliseconds = String(date.getMilliseconds()).padStart(3, '0');
+
+            // Combine into final format
+            return `${month}/${day}/${year} ${hours}:${minutes}:${seconds}.${milliseconds}`;
+        };
+
         const fetchLogs = async () => {
             try {
                 const response = await fetch('/api/logs');
                 const data = await response.json();
                 
-                // Filter out application start messages and process only trade-related logs
+                // Filter and process trade logs
                 const tradeLogs = data.tradeLogs.filter(log => 
                     !log.message.includes('Application started') &&
                     (log.message.includes('Trade') || log.message.includes('transaction'))
                 );
 
-                // Populate trade logs
+                // Populate trade logs with formatted timestamp
                 const tradeLogsBody = document.querySelector('#tradeLogs tbody');
                 tradeLogsBody.innerHTML = tradeLogs
                     .map(log => {
@@ -203,8 +222,10 @@
                         const isRequest = log.message.includes('request');
                         
                         return `
-                            <tr class="border-b border-gray-700 hover:bg-gray-700">
-                                <td class="px-6 py-3 font-mono">${log.timestamp}</td>
+                            <tr class="border-b border-gray-700 hover:bg-gray-700/50 transition-colors duration-150">
+                                <td class="px-6 py-3 font-mono text-gray-400 whitespace-nowrap">
+                                    ${formatTimestamp(log.timestamp)}
+                                </td>
                                 <td class="px-6 py-3">
                                     <span class="px-2 py-1 ${
                                         isSuccess ? 'bg-green-500/20 text-green-400' :
@@ -223,23 +244,25 @@
                     })
                     .join('');
 
-                // Populate error logs (keep existing error logs handling)
+                // Populate error logs with formatted timestamp
                 const errorLogsBody = document.querySelector('#errorLogs tbody');
                 errorLogsBody.innerHTML = data.errorLogs
                     .map(log => `
-                        <tr class="border-b border-gray-700 hover:bg-gray-700">
-                            <td class="px-6 py-3 font-mono">${log.timestamp}</td>
+                        <tr class="border-b border-gray-700 hover:bg-gray-700/50 transition-colors duration-150">
+                            <td class="px-6 py-3 font-mono text-gray-400 whitespace-nowrap">
+                                ${formatTimestamp(log.timestamp)}
+                            </td>
                             <td class="px-6 py-3">
                                 <span class="px-2 py-1 bg-red-500/20 text-red-400 text-xs rounded-full">
                                     ${log.metadata?.error || 'Unknown error'}
                                 </span>
                             </td>
                             <td class="px-6 py-3 font-mono">
-                                ${log.metadata?.request 
-                                    ? `${log.metadata.request.ticker} ${log.metadata.request.action} ${log.metadata.request.order_size}` 
-                                    : 'N/A'}
+                                ${formatRequestDetails(log.metadata?.request)}
                             </td>
-                            <td class="px-6 py-3">${log.metadata?.executionTime || 'N/A'}</td>
+                            <td class="px-6 py-3">
+                                ${formatExecutionTime(log.metadata?.executionTime)}
+                            </td>
                         </tr>
                     `)
                     .join('');
@@ -251,23 +274,50 @@
             }
         };
 
+        // Helper function to format request details
+        const formatRequestDetails = (request) => {
+            if (!request) return 'N/A';
+            return `
+                <div class="space-y-1">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-cyan-400">${request.ticker}</span>
+                        <span class="text-gray-400">|</span>
+                        <span class="${request.action === 'buy' ? 'text-green-400' : 'text-red-400'}">
+                            ${request.action.toUpperCase()}
+                        </span>
+                        <span class="text-gray-400">|</span>
+                        <span class="text-yellow-400">${request.order_size}</span>
+                    </div>
+                    <div class="text-xs text-gray-500">
+                        ${request.timestamp ? formatTimestamp(request.timestamp) : ''}
+                    </div>
+                </div>
+            `;
+        };
+
+        // Helper function to format execution time
+        const formatExecutionTime = (executionTime) => {
+            if (!executionTime) return 'N/A';
+            return `<span class="text-yellow-400">${executionTime}</span>`;
+        };
+
         // Helper function to format metadata
         const formatMetadata = (metadata) => {
             if (!metadata) return 'N/A';
             
             const details = [];
-            if (metadata.action) details.push(`${metadata.action.toUpperCase()}`);
-            if (metadata.ticker) details.push(metadata.ticker);
-            if (metadata.order_size) details.push(metadata.order_size);
-            if (metadata.execution_price) details.push(`$${metadata.execution_price}`);
-            if (metadata.execution_time) details.push(metadata.execution_time);
+            if (metadata.action) details.push(`<span class="${metadata.action === 'buy' ? 'text-green-400' : 'text-red-400'}">${metadata.action.toUpperCase()}</span>`);
+            if (metadata.ticker) details.push(`<span class="text-cyan-400">${metadata.ticker}</span>`);
+            if (metadata.order_size) details.push(`<span class="text-yellow-400">${metadata.order_size}</span>`);
+            if (metadata.execution_price) details.push(`<span class="text-green-400">$${metadata.execution_price}</span>`);
+            if (metadata.execution_time) details.push(`<span class="text-gray-400">${metadata.execution_time}</span>`);
             
-            return details.join(' | ');
+            return details.join(' <span class="text-gray-600">|</span> ');
         };
 
         // Initial fetch and auto-refresh
         fetchLogs();
-        setInterval(fetchLogs, 30_000);
+        setInterval(fetchLogs, 30000);
 
         // Add refresh button functionality
         document.querySelector('button:has(.fa-sync)').addEventListener('click', fetchLogs);
