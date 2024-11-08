@@ -1,22 +1,9 @@
 {
     "type": "module",
     "dependencies": {
-        "@jup-ag/api": "^6.0.29",
-        "@jup-ag/core": "^4.0.0-beta.21",
-        "@jup-ag/raydium-clmm-sdk": "^1.0.6",
-        "@project-serum/anchor": "^0.26.0",
-        "@solana/spl-token": "^0.4.9",
-        "@solana/web3.js": "^1.95.4",
-        "bip39": "^3.1.0",
-        "dotenv": "^16.4.5",
-        "ed25519-hd-key": "^1.3.0",
-        "express": "^4.21.1",
-        "fs": "^0.0.1-security",
-        "node-ts": "^6.1.3",
-        "nodemon": "^3.1.7",
-        "posthog-node": "^4.2.1",
-        "promise-retry": "^2.0.1",
-        "ts-node": "^10.9.2",
-        "winston": "^3.16.0"
+        "winston": "^3.11.0",
+        "express": "^4.18.2",
+        "dotenv": "^16.3.1",
+        "split2": "^4.2.0"
     }
 }
