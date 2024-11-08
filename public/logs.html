@@ -32,6 +32,19 @@
         tr:hover td {
             background-color: rgba(55, 65, 81, 0.5);
         }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .pulse {
+            animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        .expanded-row {
+            background-color: rgba(55, 65, 81, 0.3);
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-gray-200 min-h-screen">
@@ -108,27 +121,7 @@
             </div>
 
             <!-- Filters and search bar -->
-            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                <div class="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-                    <div class="flex space-x-2">
-                        <button class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-md transition-all">All Logs</button>
-                        <button class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md transition-all">Trade Logs</button>
-                        <button class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md transition-all">Error Logs</button>
-                    </div>
-                    <div class="flex items-center space-x-4">
-                        <div class="relative">
-                            <input type="text" placeholder="Search logs" 
-                                   class="pl-10 pr-4 py-2 bg-gray-700 rounded-md border border-gray-600 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all">
-                            <i class="fas fa-search absolute left-3 top-2.5 text-gray-400"></i>
-                        </div>
-                        <input type="date" 
-                               class="px-4 py-2 bg-gray-700 rounded-md border border-gray-600 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all">
-                        <button class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md transition-all">
-                            <i class="fas fa-filter mr-2"></i>Filters
-                        </button>
-                    </div>
-                </div>
-            </div>
+
 
             <!-- Trade Logs Table -->
             <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden shadow-xl">
@@ -140,7 +133,7 @@
                         <thead class="bg-gray-700 text-gray-300">
                             <tr>
                                 <th class="px-6 py-3 font-semibold">Timestamp</th>
-                                <th class="px-6 py-3 font-semibold">Type</th>
+                                <th class="px-6 py-3 font-semibold">Status</th>
                                 <th class="px-6 py-3 font-semibold">Message</th>
                                 <th class="px-6 py-3 font-semibold">Details</th>
                             </tr>
@@ -217,27 +210,57 @@
                 // Populate trade logs with formatted timestamp
                 const tradeLogsBody = document.querySelector('#tradeLogs tbody');
                 tradeLogsBody.innerHTML = tradeLogs
-                    .map(log => {
+                    .map((log, index) => {
                         const isSuccess = log.message.includes('successfully');
-                        const isRequest = log.message.includes('request');
+                        const isError = log.message.includes('error');
+                        
+                        const statusClass = isSuccess ? 'bg-green-500/20 text-green-400' :
+                                                  isError ? 'bg-red-500/20 text-red-400' :
+                                                  'bg-orange-500/20 text-orange-400';
+                        
+                        const pulseClass = !isSuccess && !isError ? 'pulse' : '';
                         
                         return `
-                            <tr class="border-b border-gray-700 hover:bg-gray-700/50 transition-colors duration-150">
-                                <td class="px-6 py-3 font-mono text-gray-400 whitespace-nowrap">
-                                    ${formatTimestamp(log.timestamp)}
+                            <tr class="border-b border-gray-700 hover:bg-gray-700/50 transition-colors duration-150 cursor-pointer" 
+                                onclick="toggleDetails(${index})">
+                                <td class="px-6 py-3 font-mono whitespace-nowrap">
+                                    <span class="text-white">${hours}:${minutes}:${seconds}.${milliseconds}</span>
+                                    <span class="text-gray-400 ml-2">${month}/${day}/${year}</span>
                                 </td>
                                 <td class="px-6 py-3">
-                                    <span class="px-2 py-1 ${
-                                        isSuccess ? 'bg-green-500/20 text-green-400' :
-                                        isRequest ? 'bg-cyan-500/20 text-cyan-400' :
-                                        'bg-yellow-500/20 text-yellow-400'
-                                    } text-xs rounded-full">
-                                        ${isSuccess ? 'SUCCESS' : isRequest ? 'REQUEST' : 'PENDING'}
-                                    </span>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="h-2 w-2 rounded-full ${statusClass} ${pulseClass}"></span>
+                                        <span class="${statusClass} text-xs rounded-full px-2 py-1">
+                                            ${isSuccess ? 'SUCCESS' : isError ? 'ERROR' : 'PENDING'}
+                                        </span>
+                                    </div>
                                 </td>
                                 <td class="px-6 py-3">${log.message}</td>
                                 <td class="px-6 py-3 font-mono">
                                     ${formatMetadata(log.metadata)}
+                                </td>
+                            </tr>
+                            <tr class="hidden" data-details="${index}">
+                                <td colspan="4" class="px-6 py-4 bg-gray-700/30">
+                                    <div class="space-y-2">
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <h4 class="text-sm font-semibold text-gray-400">Request Details</h4>
+                                                <div class="mt-1 text-sm">
+                                                    <div>Action: <span class="${log.metadata?.action === 'buy' ? 'text-green-400' : 'text-red-400'}">${log.metadata?.action?.toUpperCase() || 'N/A'}</span></div>
+                                                    <div>Ticker: <span class="text-cyan-400">${log.metadata?.ticker || 'N/A'}</span></div>
+                                                    <div>Order Size: <span class="text-yellow-400">${log.metadata?.order_size || 'N/A'}</span></div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <h4 class="text-sm font-semibold text-gray-400">Execution Details</h4>
+                                                <div class="mt-1 text-sm">
+                                                    <div>Price: <span class="text-green-400">${log.metadata?.execution_price ? '$' + log.metadata.execution_price : 'N/A'}</span></div>
+                                                    <div>Time: <span class="text-gray-400">${log.metadata?.execution_time || 'N/A'}</span></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </td>
                             </tr>
                         `;
@@ -342,6 +365,27 @@
             document.getElementById('errorRate').textContent = `${errorRate}%`;
             document.getElementById('avgTime').textContent = `${avgTime}ms`;
         };
+
+        // Add this function to handle row expansion
+        function toggleDetails(index) {
+            const detailsRow = document.querySelector(`[data-details="${index}"]`);
+            const parentRow = detailsRow.previousElementSibling;
+            
+            if (detailsRow.classList.contains('hidden')) {
+                // Hide all other expanded rows
+                document.querySelectorAll('[data-details]').forEach(row => {
+                    row.classList.add('hidden');
+                    row.previousElementSibling.classList.remove('expanded-row');
+                });
+                
+                // Show clicked row
+                detailsRow.classList.remove('hidden');
+                parentRow.classList.add('expanded-row');
+            } else {
+                detailsRow.classList.add('hidden');
+                parentRow.classList.remove('expanded-row');
+            }
+        }
     </script>
 </body>
 </html> 
