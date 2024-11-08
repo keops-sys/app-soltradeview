@@ -507,7 +507,7 @@ if (process.env.NODE_ENV === 'production') {
   https.createServer(credentials, app).listen(443, () => {
     console.log(chalk.green('HTTPS Server running on port 443'));
     console.log(chalk.yellow(`Webhook URL: https://${process.env.DOMAIN}/webhook`));
-    console.log(chalk.yellow('Dashboard:', 'https://${process.env.DOMAIN}/dashboard.html'));
+    console.log(chalk.yellow('Dashboard:', `https://${process.env.DOMAIN}/dashboard.html`));
 
   });
 } else {
