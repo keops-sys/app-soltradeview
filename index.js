@@ -1,5 +1,8 @@
 import { PostHog } from 'posthog-node'
 import { logger } from './utils/logger.js';
+import { EventEmitter } from 'events';
+import chalk from 'chalk';
+import figlet from 'figlet';
 
 // Initialize PostHog with debug mode
 const client = new PostHog(
@@ -74,7 +77,7 @@ import {
   VersionedTransaction,
   PublicKey,
   TransactionExpiredBlockheightExceededError,
-  LAMPORTS_PER_SOL,
+  LAMPORTS_PER_SOL
 } from '@solana/web3.js';
 import dotenv from 'dotenv';
 import { Wallet } from '@project-serum/anchor';
@@ -102,30 +105,46 @@ const ensureWWW = (req, res, next) => {
 // Apply www redirect middleware to main app
 app.use(ensureWWW);
 
-// Replace the simple connection with a rate-limited connection handler
-const createRateLimitedConnection = () => {
-  const maxRetries = 3;
-  const baseDelay = 1000; // 1 second
+// Create an EventEmitter for RPC events
+const rpcEvents = new EventEmitter();
 
-  return new Connection(process.env.SOLANA_RPC_ENDPOINT, {
-    commitment: 'confirmed',
-    async fetchMiddleware(url, options, fetch) {
-      for (let attempt = 0; attempt < maxRetries; attempt++) {
-        try {
-          return await fetch(url, options);
-        } catch (error) {
-          if (error instanceof RateLimitError) {
-            const delay = baseDelay * Math.pow(2, attempt);
-            console.log(`Rate limit hit, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            continue;
-          }
-          throw error;
+// Create connection with retry and event emission
+const createRateLimitedConnection = () => {
+    const maxRetries = 3;
+    const baseDelay = 1000;
+
+    return new Connection(process.env.SOLANA_RPC_ENDPOINT, {
+        commitment: 'confirmed',
+        async fetchMiddleware(url, options, fetch) {
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+                try {
+                    return await fetch(url, options);
+                } catch (error) {
+                    if (error) {
+                        const delay = baseDelay * Math.pow(2, attempt);
+                        
+                        // Emit rate limit event
+                        rpcEvents.emit('rateLimitHit', {
+                            retryIn: delay,
+                            attempt: attempt + 1,
+                            endpoint: url
+                        });
+
+                        logger.warn('Rate limit hit', {
+                            retryIn: delay,
+                            attempt: attempt + 1,
+                            endpoint: url
+                        });
+
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue;
+                    }
+                    throw error;
+                }
+            }
+            throw new Error(`Failed after ${maxRetries} attempts due to rate limits`);
         }
-      }
-      throw new Error(`Failed after ${maxRetries} attempts due to rate limits`);
-    }
-  });
+    });
 };
 
 const connection = createRateLimitedConnection();
@@ -437,6 +456,30 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+const displayStartupBanner = (port) => {
+    console.log('\n');
+    console.log(chalk.cyan(figlet.textSync('SolTradeView', { horizontalLayout: 'full' })));
+    console.log('\n');
+    
+    const isDev = process.env.NODE_ENV !== 'production';
+    console.log(chalk.blue('Mode:'), isDev ? chalk.yellow('Development') : chalk.green('Production'));
+    console.log(chalk.blue('Server:'), chalk.green(`Running on port ${port}`));
+    console.log(chalk.blue('RPC Endpoint:'), chalk.gray(process.env.SOLANA_RPC_ENDPOINT));
+    console.log('\n');
+    
+    console.log(chalk.white.bold('Available Endpoints:'));
+    const baseUrl = isDev ? `http://localhost:${port}` : `https://${process.env.DOMAIN}`;
+    console.log(chalk.red(`• Webhook:   ${baseUrl}/webhook`));
+    console.log(chalk.yellow(`• Dashboard: ${baseUrl}/dashboard.html`));
+    console.log(chalk.yellow(`• API:       ${baseUrl}/api/trades`));
+    console.log('\n');
+    
+    if (isDev) {
+        console.log(chalk.gray('Press Ctrl+C to stop the server'));
+        console.log('\n');
+    }
+};
+
 // Server setup based on environment
 if (process.env.NODE_ENV === 'production') {
   // HTTP server for redirects
@@ -449,17 +492,22 @@ if (process.env.NODE_ENV === 'production') {
 
   // Start HTTP server
   http.createServer(httpApp).listen(80, () => {
-    console.log('HTTP Server running on port 80 and redirecting to HTTPS/WWW');
+    console.log(chalk.green('HTTP Server running on port 80 and redirecting to HTTPS/WWW'));
   });
 
   // Start HTTPS server
   https.createServer(credentials, app).listen(443, () => {
-    console.log('HTTPS Server running on port 443');
+    console.log(chalk.green('HTTPS Server running on port 443'));
+    console.log(chalk.red(`Webhook URL: https://${process.env.DOMAIN}/webhook`));
   });
 } else {
   // Development server
   app.listen(3000, () => {
-    console.log('Development server running on port 3000');
+    console.log(chalk.green('Development server running on port 3000'));
+    console.log(chalk.red('Webhook URL: http://localhost:3000/webhook'));
+    console.log('\nAvailable endpoints:');
+    console.log(chalk.yellow('- Dashboard:', 'http://localhost:3000/dashboard.html'));
+    console.log(chalk.yellow('- API:', 'http://localhost:3000/api/trades'));
   });
 }
 
@@ -469,12 +517,13 @@ process.on('SIGTERM', async () => {
   process.exit(0)
 })
 
-// Log rate limit hits
-connection.on('rateLimitHit', (retryIn) => {
-  logger.warn('Rate limit hit', {
-    retryIn: `${retryIn}ms`,
-    endpoint: process.env.SOLANA_RPC_ENDPOINT
-  });
+// Listen for rate limit events
+rpcEvents.on('rateLimitHit', ({ retryIn, attempt, endpoint }) => {
+    logger.warn('Rate limit hit', {
+        retryIn: `${retryIn}ms`,
+        attempt,
+        endpoint: process.env.SOLANA_RPC_ENDPOINT
+    });
 });
 
 // Log application startup
