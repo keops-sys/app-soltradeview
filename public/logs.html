@@ -354,8 +354,6 @@
                         <span class="${request.action === 'buy' ? 'text-green-400' : 'text-red-400'}">
                             ${request.action.toUpperCase()}
                         </span>
-                        <span class="text-gray-400">|</span>
-                        <span class="text-yellow-400">${request.order_size}</span>
                     </div>
                     <div class="text-xs text-gray-500">
                         ${request.timestamp ? formatTimestamp(request.timestamp) : ''}
@@ -377,7 +375,6 @@
             const details = [];
             if (metadata.action) details.push(`<span class="${metadata.action === 'buy' ? 'text-green-400' : 'text-red-400'}">${metadata.action.toUpperCase()}</span>`);
             if (metadata.ticker) details.push(`<span class="text-cyan-400">${metadata.ticker}</span>`);
-            if (metadata.order_size) details.push(`<span class="text-yellow-400">${metadata.order_size}</span>`);
             if (metadata.execution_price) details.push(`<span class="text-green-400">$${metadata.execution_price}</span>`);
             if (metadata.execution_time) details.push(`<span class="text-gray-400">${metadata.execution_time}</span>`);
             
