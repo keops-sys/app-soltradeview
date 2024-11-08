@@ -1,8 +1,25 @@
 import { PostHog } from 'posthog-node'
+
+// Initialize PostHog with debug mode
 const client = new PostHog(
   'phc_bSVQPOlxikcyh0ScYCZQNpCg6guWnYvVwAd2e5z8iHz',
-  { host: 'https://eu.i.posthog.com' }
+  { 
+    host: 'https://eu.i.posthog.com',
+    flushAt: 1, // Flush immediately for testing
+    flushInterval: 0 // Disable auto-flushing
+  }
 )
+
+// Test event
+client.capture({
+  distinctId: 'test-user',
+  event: 'server_started',
+  properties: {
+    environment: process.env.NODE_ENV,
+    timestamp: new Date().toISOString()
+  }
+})
+
 import express from 'express';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -326,6 +343,17 @@ async function sendAndConfirmTransaction({ connection, serializedTransaction, bl
  */
 app.post('/webhook', async (req, res) => {
   try {
+    // Track webhook received
+    client.capture({
+      distinctId: 'webhook',
+      event: 'webhook_received',
+      properties: {
+        action: req.body.action,
+        order_size: req.body.order_size,
+        timestamp: new Date().toISOString()
+      }
+    })
+
     console.log('Received alert, starting swap process.');
     console.log('Request body:', JSON.stringify(req.body, null, 2));
 
@@ -409,14 +437,46 @@ app.post('/webhook', async (req, res) => {
       blockhashWithExpiryBlockHeight: latestBlockhash,
     });
 
+    // Track successful trade
+    client.capture({
+      distinctId: 'webhook',
+      event: 'trade_completed',
+      properties: {
+        action: req.body.action,
+        amount: tradeAmount,
+        timestamp: new Date().toISOString()
+      }
+    })
+
     res.json({ status: 'success' });
   } catch (error) {
+    // Track errors
+    client.capture({
+      distinctId: 'webhook',
+      event: 'trade_error',
+      properties: {
+        error: error.message,
+        timestamp: new Date().toISOString()
+      }
+    })
+    
     console.error('Error processing swap:', error);
     res.status(500).json({ status: 'error', message: error.message });
   }
 });
 
 app.get('/', (req, res) => {
+  // Track page view
+  client.capture({
+    distinctId: req.ip,
+    event: 'page_view',
+    properties: {
+      path: '/',
+      userAgent: req.headers['user-agent'],
+      timestamp: new Date().toISOString()
+    }
+  })
+  
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
@@ -445,3 +505,9 @@ if (process.env.NODE_ENV === 'production') {
     console.log('Development server running on port 3000');
   });
 }
+
+// Ensure events are sent before server shutdown
+process.on('SIGTERM', async () => {
+  await client.shutdown()
+  process.exit(0)
+})
