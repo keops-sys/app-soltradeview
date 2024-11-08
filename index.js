@@ -567,57 +567,100 @@ app.get('/api/trades', async (req, res) => {
 });
 
 app.get('/api/logs', async (req, res) => {
-  try {
-      // Use proper path resolution
-      const errorLogPath = path.join(__dirname, 'logs', 'error.log');
-      const tradeLogPath = path.join(__dirname, 'logs', 'trades.log');
-      
-      // Read files using proper promise-based fs
-      const [errorLogs, tradeLogs] = await Promise.all([
-          fs.promises.readFile(errorLogPath, 'utf8'),
-          fs.promises.readFile(tradeLogPath, 'utf8')
-      ]);
+    try {
+        const errorLogPath = path.join(__dirname, 'logs', 'error.log');
+        const tradeLogPath = path.join(__dirname, 'logs', 'trades.log');
+        
+        const [errorLogs, tradeLogs] = await Promise.all([
+            fs.promises.readFile(errorLogPath, 'utf8'),
+            fs.promises.readFile(tradeLogPath, 'utf8')
+        ]);
 
-      // Parse logs with error handling
-      const parseLogs = (content) => {
-          return content
-              .split('\n')
-              .filter(line => line.trim())
-              .map(line => {
-                  try {
-                      const match = line.match(/\[(.*?)\] (\w+): (.*)/);
-                      if (!match) return null;
-                      
-                      const [_, timestamp, level, jsonStr] = match;
-                      const data = JSON.parse(jsonStr);
-                      
-                      return {
-                          timestamp,
-                          type: level,
-                          ...data
-                      };
-                  } catch (err) {
-                      console.error('Error parsing log line:', err);
-                      return null;
-                  }
-              })
-              .filter(log => log !== null);
-      };
+        const parseLogs = (content) => {
+            const logs = [];
+            let currentLog = '';
+            let inJson = false;
+            
+            // Split by lines but preserve the original formatting
+            const lines = content.split('\n');
+            
+            for (const line of lines) {
+                if (line.match(/^\[\d{4}-\d{2}-\d{2}T/)) {
+                    // New log entry starts
+                    if (currentLog) {
+                        try {
+                            const parsed = parseLogEntry(currentLog);
+                            if (parsed) logs.push(parsed);
+                        } catch (e) {
+                            console.debug('Failed to parse log entry:', e);
+                        }
+                    }
+                    currentLog = line;
+                } else {
+                    // Continue current log entry
+                    currentLog += '\n' + line;
+                }
+            }
+            
+            // Don't forget the last entry
+            if (currentLog) {
+                try {
+                    const parsed = parseLogEntry(currentLog);
+                    if (parsed) logs.push(parsed);
+                } catch (e) {
+                    console.debug('Failed to parse last log entry:', e);
+                }
+            }
+            
+            return logs;
+        };
 
-      const parsedErrorLogs = parseLogs(errorLogs);
-      const parsedTradeLogs = parseLogs(tradeLogs);
+        const parseLogEntry = (entry) => {
+            const match = entry.match(/^\[(.*?)\] (\w+): (.*[\s\S]*)/);
+            if (!match) return null;
 
-      res.json({
-          errorLogs: parsedErrorLogs,
-          tradeLogs: parsedTradeLogs
-      });
-  } catch (error) {
-      console.error('Error loading logs:', error);
-      res.status(500).json({ 
-          error: 'Failed to load logs',
-          details: error.message 
-      });
-  }
+            const [_, timestamp, level, rest] = match;
+            
+            try {
+                // Find the JSON part
+                const jsonStart = rest.indexOf('{');
+                const message = rest.substring(0, jsonStart).trim();
+                const jsonStr = rest.substring(jsonStart);
+                const data = JSON.parse(jsonStr);
+
+                return {
+                    timestamp,
+                    type: level,
+                    message,
+                    metadata: data.metadata || {},
+                    raw: entry // Keep the raw log for debugging
+                };
+            } catch (e) {
+                console.debug('Error parsing JSON in log entry:', e);
+                return {
+                    timestamp,
+                    type: level,
+                    message: rest.trim(),
+                    metadata: {},
+                    raw: entry
+                };
+            }
+        };
+
+        const parsedErrorLogs = parseLogs(errorLogs);
+        const parsedTradeLogs = parseLogs(tradeLogs);
+
+        res.json({
+            errorLogs: parsedErrorLogs.filter(log => log.type === 'ERROR'),
+            tradeLogs: parsedTradeLogs.filter(log => log.type === 'INFO')
+        });
+    } catch (error) {
+        console.error('Error loading logs:', error);
+        res.status(500).json({ 
+            error: 'Failed to load logs',
+            details: error.message 
+        });
+    }
 });
 
 // Update the logs page route to use proper path resolution
