@@ -643,7 +643,7 @@ process.on('uncaughtException', (error) => {
 });
 
 // Log startup
-logger.info('Application started', {
+logger.verbose('Application started', {
   env: process.env.NODE_ENV,
   rpcEndpoint: process.env.SOLANA_RPC_ENDPOINT
 });
