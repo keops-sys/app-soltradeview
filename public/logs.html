@@ -183,10 +183,7 @@
             return new Date(timestamp).toLocaleString();
         };
 
-        const formatExecutionTime = (time) => {
-            if (!time) return 'N/A';
-            return time.includes('ms') ? time : `${time}ms`;
-        };
+
 
         const formatUSDC = (amount) => {
             if (!amount) return 'N/A';
