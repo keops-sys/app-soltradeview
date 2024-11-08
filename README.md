@@ -1,21 +1,17 @@
-npx nodemon index.js
+./start.sh
 
-
-
+https://soltradeview.com/
+https://soltradeview.com/
+https://soltradeview.com/
+https://soltradeview.com/
+https://soltradeview.com/
 Create a .env file in the root of the project and add the following:
-```
-PRIVATE_KEY=5xqp2sY7SVD...tRoiMz7JNarG6zKhRvdaHx8hiPS
-PORT=80
 
-```
+# SSL Certificate Generation
+acme.sh --issue --standalone -d soltradeview.com -d www.soltradeview.com
 
-
-
-
-acme.sh --issue --standalone -d soltradeview.com
-
-
-[Thu Nov  7 14:11:44 UTC 2024] Your cert is in: /root/.acme.sh/soltradeview.com_ecc/soltradeview.com.cer
-[Thu Nov  7 14:11:44 UTC 2024] Your cert key is in: /root/.acme.sh/soltradeview.com_ecc/soltradeview.com.key
-[Thu Nov  7 14:11:44 UTC 2024] The intermediate CA cert is in: /root/.acme.sh/soltradeview.com_ecc/ca.cer
-[Thu Nov  7 14:11:44 UTC 2024] And the full-chain cert is in: /root/.acme.sh/soltradeview.com_ecc/fullchain.cer
+# Certificate Locations
+The certificates will be generated in:
+- Private Key: /root/.acme.sh/soltradeview.com_ecc/soltradeview.com.key
+- Full Chain: /root/.acme.sh/soltradeview.com_ecc/fullchain.cer
+- CA Cert: /root/.acme.sh/soltradeview.com_ecc/ca.cer
