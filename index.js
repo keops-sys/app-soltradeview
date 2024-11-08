@@ -124,7 +124,7 @@ const createRateLimitedConnection = () => {
     const baseDelay = 1000;
 
     return new Connection(process.env.SOLANA_RPC_ENDPOINT, {
-        commitment: 'confirmed',
+        commitment: 'finalized',
         async fetchMiddleware(url, options, fetch) {
             for (let attempt = 0; attempt < maxRetries; attempt++) {
                 try {
