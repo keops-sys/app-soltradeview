@@ -87,14 +87,6 @@ case "$1" in
         ;;
 esac
 
-# Create/update .gitignore
-cat > certs/.gitignore << EOL
-# Ignore all files in this directory
-*
-# Except this file
-!.gitignore
-# And the development directory
-!development/
-EOL
+
 
 log "Certificate setup completed"
