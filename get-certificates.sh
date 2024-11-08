@@ -34,7 +34,7 @@ fetch_prod_certs() {
     if ! command -v acme.sh &> /dev/null; then
         error "acme.sh is not installed"
         exit 1
-    }
+    fi
 
     # Revoke existing certificate if it exists
     acme.sh --revoke -d soltradeview.com || warn "No certificate to revoke or revocation failed"
