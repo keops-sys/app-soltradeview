@@ -377,7 +377,7 @@ async function sendAndConfirmTransaction({ connection, serializedTransaction, bl
           throw new Error(`Transaction failed: ${confirmation.value.err}`);
         }
 
-        console.log(`Transaction successful: https://solscan.io/tx/${signature}`);
+        console.log(`✅ Transaction successful: https://solscan.io/tx/${signature}`);
         return signature;
       } catch (error) {
         // Handle SendTransactionError specifically

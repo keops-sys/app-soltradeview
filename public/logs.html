@@ -200,13 +200,6 @@
             return `$${parseFloat(price).toFixed(2)}`;
         };
 
-        // Toggle function for expanding/collapsing details
-        const toggleDetails = (index) => {
-            const detailsRow = document.querySelector(`[data-details="${index}"]`);
-            if (detailsRow) {
-                detailsRow.classList.toggle('hidden');
-            }
-        };
 
         // Main fetch function
         const fetchLogs = async () => {
