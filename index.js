@@ -10,9 +10,16 @@ import chalk from 'chalk';
 import figlet from 'figlet';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
-
-// Load environment variables
-dotenv.config();
+import {
+  Connection,
+  Keypair,
+  VersionedTransaction,
+  PublicKey,
+  TransactionExpiredBlockheightExceededError,
+  LAMPORTS_PER_SOL
+} from '@solana/web3.js';
+import { Wallet } from '@project-serum/anchor';
+import bs58 from 'bs58';
 
 // Validate required environment variables
 const requiredEnvVars = [
@@ -95,17 +102,7 @@ const credentials = getSSLCredentials();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-import {
-  Connection,
-  Keypair,
-  VersionedTransaction,
-  PublicKey,
-  TransactionExpiredBlockheightExceededError,
-  LAMPORTS_PER_SOL
-} from '@solana/web3.js';
-import dotenv from 'dotenv';
-import { Wallet } from '@project-serum/anchor';
-import bs58 from 'bs58';
+
 
 dotenv.config();
 
