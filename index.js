@@ -29,6 +29,7 @@ import {
   PublicKey,
   TransactionExpiredBlockheightExceededError,
   LAMPORTS_PER_SOL,
+  RateLimitError,
 } from '@solana/web3.js';
 import dotenv from 'dotenv';
 import { Wallet } from '@project-serum/anchor';
@@ -39,8 +40,43 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use((req, res, next) => {
+  if (!req.secure) {
+    return res.redirect(301, `https://www.${req.headers.host}${req.url}`);
+  } else if (!req.headers.host.startsWith('www.')) {
+    return res.redirect(301, `https://www.${req.headers.host}${req.url}`);
+  }
+  next();
+});
 
-const connection = new Connection('https://api.mainnet-beta.solana.com');
+
+// Replace the simple connection with a rate-limited connection handler
+const createRateLimitedConnection = () => {
+  const maxRetries = 3;
+  const baseDelay = 1000; // 1 second
+
+  return new Connection('https://api.mainnet-beta.solana.com', {
+    commitment: 'confirmed',
+    async fetchMiddleware(url, options, fetch) {
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          return await fetch(url, options);
+        } catch (error) {
+          if (error instanceof RateLimitError) {
+            const delay = baseDelay * Math.pow(2, attempt);
+            console.log(`Rate limit hit, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          throw error;
+        }
+      }
+      throw new Error(`Failed after ${maxRetries} attempts due to rate limits`);
+    }
+  });
+};
+
+const connection = createRateLimitedConnection();
 const wallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIVATE_KEY || '')));
 
 const INPUT_MINT = 'So11111111111111111111111111111111111111112'; // SOL
