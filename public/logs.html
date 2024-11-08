@@ -6,75 +6,179 @@
     <title>Logs - Soltradeview</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+        
+        /* Smooth transitions */
+        .transition-all {
+            transition: all 0.3s ease;
+        }
+        
+        /* Table hover effects */
+        tr:hover td {
+            background-color: rgba(55, 65, 81, 0.5);
+        }
+    </style>
 </head>
-<body>
-    <div class="min-h-screen bg-gray-900 text-gray-200 p-6">
-        <div class="max-w-7xl mx-auto">
-            <!-- Header -->
-            <div class="flex items-center justify-between">
-                <h1 class="text-3xl font-bold text-cyan-400">System Logs</h1>
-                <div class="flex space-x-4">
-                    <button class="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-md flex items-center">
-                        <span>Export Logs</span>
-                        <i class="ml-2 fa-solid fa-file-download"></i>
-                    </button>
-                    <button class="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-md flex items-center">
-                        <span>Refresh</span>
-                        <i class="ml-2 fa-solid fa-sync"></i>
-                    </button>
+<body class="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-gray-200 min-h-screen">
+    <div class="p-6">
+        <div class="max-w-7xl mx-auto space-y-6">
+            <!-- Header with gradient border -->
+            <div class="bg-gray-800 rounded-lg p-6 border border-transparent bg-gradient-to-r from-cyan-500/20 via-purple-500/20 to-cyan-500/20">
+                <div class="flex items-center justify-between">
+                    <div class="space-y-1">
+                        <h1 class="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
+                            System Logs
+                        </h1>
+                        <p class="text-gray-400 text-sm">Real-time monitoring and analysis</p>
+                    </div>
+                    <div class="flex space-x-4">
+                        <button class="px-4 py-2 bg-purple-700 hover:bg-purple-600 text-white rounded-md flex items-center transition-all shadow-lg hover:shadow-purple-500/20">
+                            <span>Export Logs</span>
+                            <i class="ml-2 fa-solid fa-file-download"></i>
+                        </button>
+                        <button class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-md flex items-center transition-all shadow-lg hover:shadow-cyan-500/20">
+                            <span>Refresh</span>
+                            <i class="ml-2 fa-solid fa-sync"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Total Trades</p>
+                            <h3 class="text-2xl font-bold text-white" id="totalTrades">0</h3>
+                        </div>
+                        <div class="bg-blue-500/20 p-3 rounded-lg">
+                            <i class="fas fa-exchange-alt text-blue-400"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Success Rate</p>
+                            <h3 class="text-2xl font-bold text-white" id="successRate">0%</h3>
+                        </div>
+                        <div class="bg-green-500/20 p-3 rounded-lg">
+                            <i class="fas fa-chart-line text-green-400"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Error Rate</p>
+                            <h3 class="text-2xl font-bold text-white" id="errorRate">0%</h3>
+                        </div>
+                        <div class="bg-red-500/20 p-3 rounded-lg">
+                            <i class="fas fa-exclamation-triangle text-red-400"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Avg Response Time</p>
+                            <h3 class="text-2xl font-bold text-white" id="avgTime">0ms</h3>
+                        </div>
+                        <div class="bg-yellow-500/20 p-3 rounded-lg">
+                            <i class="fas fa-clock text-yellow-400"></i>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- Filters and search bar -->
-            <div class="mt-6 flex justify-between items-center">
-                <div class="flex space-x-4">
-                    <button class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-md">All Logs</button>
-                    <button class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-md">Trade Logs</button>
-                    <button class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-md">Error Logs</button>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <input type="text" placeholder="Search logs" 
-                           class="px-4 py-2 bg-gray-800 rounded-md border border-gray-700 text-sm focus:ring-cyan-500 focus:ring-2">
-                    <input type="date" class="px-4 py-2 bg-gray-800 rounded-md border border-gray-700 text-sm">
-                    <button class="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 rounded-md">Filters</button>
+            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <div class="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+                    <div class="flex space-x-2">
+                        <button class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-md transition-all">All Logs</button>
+                        <button class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md transition-all">Trade Logs</button>
+                        <button class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md transition-all">Error Logs</button>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <div class="relative">
+                            <input type="text" placeholder="Search logs" 
+                                   class="pl-10 pr-4 py-2 bg-gray-700 rounded-md border border-gray-600 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all">
+                            <i class="fas fa-search absolute left-3 top-2.5 text-gray-400"></i>
+                        </div>
+                        <input type="date" 
+                               class="px-4 py-2 bg-gray-700 rounded-md border border-gray-600 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all">
+                        <button class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md transition-all">
+                            <i class="fas fa-filter mr-2"></i>Filters
+                        </button>
+                    </div>
                 </div>
             </div>
 
             <!-- Trade Logs Table -->
-            <div class="overflow-x-auto mt-8 bg-gray-800 shadow-lg rounded-md">
-                <table class="w-full text-left text-sm" id="tradeLogs">
-                    <thead class="bg-gray-700">
-                        <tr>
-                            <th class="px-6 py-3">Timestamp</th>
-                            <th class="px-6 py-3">Type</th>
-                            <th class="px-6 py-3">Message</th>
-                            <th class="px-6 py-3">Details</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
+            <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden shadow-xl">
+                <div class="p-4 border-b border-gray-700 bg-gray-800">
+                    <h2 class="text-xl font-semibold text-cyan-400">Trade Logs</h2>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm" id="tradeLogs">
+                        <thead class="bg-gray-700 text-gray-300">
+                            <tr>
+                                <th class="px-6 py-3 font-semibold">Timestamp</th>
+                                <th class="px-6 py-3 font-semibold">Type</th>
+                                <th class="px-6 py-3 font-semibold">Message</th>
+                                <th class="px-6 py-3 font-semibold">Details</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-700"></tbody>
+                    </table>
+                </div>
             </div>
 
             <!-- Error Logs Table -->
-            <div class="overflow-x-auto mt-8 bg-gray-800 shadow-lg rounded-md">
-                <table class="w-full text-left text-sm" id="errorLogs">
-                    <thead class="bg-gray-700">
-                        <tr>
-                            <th class="px-6 py-3">Timestamp</th>
-                            <th class="px-6 py-3">Error</th>
-                            <th class="px-6 py-3">Request</th>
-                            <th class="px-6 py-3">Execution Time</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
+            <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden shadow-xl">
+                <div class="p-4 border-b border-gray-700 bg-gray-800">
+                    <h2 class="text-xl font-semibold text-red-400">Error Logs</h2>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm" id="errorLogs">
+                        <thead class="bg-gray-700 text-gray-300">
+                            <tr>
+                                <th class="px-6 py-3 font-semibold">Timestamp</th>
+                                <th class="px-6 py-3 font-semibold">Error</th>
+                                <th class="px-6 py-3 font-semibold">Request</th>
+                                <th class="px-6 py-3 font-semibold">Execution Time</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-700"></tbody>
+                    </table>
+                </div>
             </div>
 
             <!-- Pagination -->
-            <div class="mt-4 flex justify-between items-center">
-                <button class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md">Previous</button>
-                <span>Page 1 of 1</span>
-                <button class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md">Next</button>
+            <div class="flex justify-between items-center bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <button class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i class="fas fa-chevron-left mr-2"></i>Previous
+                </button>
+                <span class="text-gray-400">Page <span class="text-white">1</span> of <span class="text-white">1</span></span>
+                <button class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                    Next<i class="fas fa-chevron-right ml-2"></i>
+                </button>
             </div>
         </div>
     </div>
@@ -140,6 +244,8 @@
                     `)
                     .join('');
 
+                // Update stats
+                updateStats(data.tradeLogs, data.errorLogs);
             } catch (error) {
                 console.error('Error fetching logs:', error);
             }
@@ -165,6 +271,27 @@
 
         // Add refresh button functionality
         document.querySelector('button:has(.fa-sync)').addEventListener('click', fetchLogs);
+
+        // Add stats calculation
+        const updateStats = (tradeLogs, errorLogs) => {
+            const totalTrades = tradeLogs.length;
+            const successfulTrades = tradeLogs.filter(log => log.message.includes('successfully')).length;
+            const successRate = totalTrades ? ((successfulTrades / totalTrades) * 100).toFixed(1) : 0;
+            const errorRate = totalTrades ? ((errorLogs.length / totalTrades) * 100).toFixed(1) : 0;
+            
+            // Calculate average execution time
+            const executionTimes = errorLogs
+                .map(log => parseInt(log.metadata?.executionTime))
+                .filter(time => !isNaN(time));
+            const avgTime = executionTimes.length 
+                ? (executionTimes.reduce((a, b) => a + b, 0) / executionTimes.length).toFixed(0)
+                : 0;
+
+            document.getElementById('totalTrades').textContent = totalTrades;
+            document.getElementById('successRate').textContent = `${successRate}%`;
+            document.getElementById('errorRate').textContent = `${errorRate}%`;
+            document.getElementById('avgTime').textContent = `${avgTime}ms`;
+        };
     </script>
 </body>
 </html> 
