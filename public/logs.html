@@ -214,30 +214,49 @@
                 const response = await fetch('/api/logs');
                 const data = await response.json();
                 
-                console.log('Raw data:', data);
-                
-                // Extract tradeLogs from the response
-                const tradeLogs = data.tradeLogs || [];
-                const errorLogs = data.errorLogs || [];
-                
-                console.log('Trade logs:', tradeLogs);
+                // Group trades by their common attributes to consolidate status
+                const consolidatedTrades = data.tradeLogs.reduce((acc, log) => {
+                    // Extract identifying information from the metadata
+                    const metadata = log.metadata || {};
+                    const request = metadata.request || {};
+                    const tradeId = `${request.timestamp || log.timestamp}-${metadata.action}-${request.position_size}`;
+                    
+                    // If this trade doesn't exist in our accumulator or this is a success/error message, update it
+                    if (!acc[tradeId] || 
+                        log.message?.includes('successfully') || 
+                        log.message?.includes('failed')) {
+                        acc[tradeId] = {
+                            ...log,
+                            isSuccess: log.message?.includes('successfully'),
+                            isError: log.message?.includes('failed'),
+                            isPending: log.message?.includes('received'),
+                            timestamp: request.timestamp || log.timestamp,
+                        };
+                    }
+                    return acc;
+                }, {});
+
+                // Convert back to array and sort by timestamp
+                const tradeLogs = Object.values(consolidatedTrades)
+                    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
                 
                 const tradeLogsBody = document.querySelector('#tradeLogs tbody');
                 tradeLogsBody.innerHTML = tradeLogs
                     .map((log, index) => {
-                        const isSuccess = log.message?.includes('successfully');
-                        const isError = log.message?.includes('failed');
-                        const isPending = log.message?.includes('received');
-                        
-                        const statusClass = isSuccess ? 'bg-green-500/20 text-green-400' :
-                                                  isError ? 'bg-red-500/20 text-red-400' :
+                        const statusClass = log.isSuccess ? 'bg-green-500/20 text-green-400' :
+                                                  log.isError ? 'bg-red-500/20 text-red-400' :
                                                   'bg-orange-500/20 text-orange-400';
                         
-                        const pulseClass = isPending ? 'pulse' : '';
+                        const pulseClass = log.isPending ? 'pulse' : '';
                         
-                        // Extract metadata from the correct location
                         const metadata = log.metadata || {};
                         const request = metadata.request || {};
+                        
+                        const getStatusEmoji = (log) => {
+                            if (log.isSuccess) return '🟢'; // Green circle for success
+                            if (log.isError) return '🔴';   // Red circle for error
+                            return '🟡';                    // Yellow circle for pending
+                        };
                         
                         return `
                             <tr class="border-b border-gray-700 hover:bg-gray-700/50 transition-colors duration-150 cursor-pointer" 
@@ -247,9 +266,9 @@
                                 </td>
                                 <td class="px-6 py-3">
                                     <div class="flex items-center space-x-2">
-                                        <span class="h-2 w-2 rounded-full ${statusClass} ${pulseClass}"></span>
+                                        <span class="text-xl">${getStatusEmoji(log)}</span>
                                         <span class="${statusClass} text-xs rounded-full px-2 py-1">
-                                            ${isSuccess ? 'SUCCESS' : isError ? 'ERROR' : 'PENDING'}
+                                            ${log.isSuccess ? 'SUCCESS' : log.isError ? 'ERROR' : 'PENDING'}
                                         </span>
                                     </div>
                                 </td>
@@ -300,7 +319,7 @@
                                                         <span class="text-gray-400">Execution Time:</span>
                                                         <span class="text-yellow-400">${metadata.executionTime || 'N/A'}</span>
                                                     </div>
-                                                    ${isError ? `
+                                                    ${log.isError ? `
                                                     <div class="mt-4">
                                                         <span class="text-gray-400">Error Details:</span>
                                                         <pre class="mt-1 text-red-400 text-xs overflow-x-auto">${metadata.error || 'Unknown error'}</pre>
@@ -316,8 +335,8 @@
                     })
                     .join('');
 
-                // Update stats with the correct data
-                updateStats(tradeLogs, errorLogs);
+                // Update stats with consolidated trades
+                updateStats(tradeLogs, data.errorLogs);
 
             } catch (error) {
                 console.error('Error fetching logs:', error);
