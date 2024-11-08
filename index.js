@@ -3,6 +3,31 @@ import { logger } from './utils/logger.js';
 import { EventEmitter } from 'events';
 import chalk from 'chalk';
 import figlet from 'figlet';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+// Load environment variables
+dotenv.config();
+
+// Validate required environment variables
+const requiredEnvVars = [
+    'DOMAIN',
+    'NODE_ENV',
+    'SOLANA_RPC_ENDPOINT',
+    'PRIVATE_KEY'
+];
+
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingEnvVars.length > 0) {
+    console.error(chalk.red('Error: Missing required environment variables:'));
+    missingEnvVars.forEach(varName => {
+        console.error(chalk.red(`  - ${varName}`));
+    });
+    console.error(chalk.yellow('\nPlease check your .env file'));
+    process.exit(1);
+}
 
 // Initialize PostHog with debug mode
 const client = new PostHog(
@@ -462,13 +487,18 @@ const displayStartupBanner = (port) => {
     console.log('\n');
     
     const isDev = process.env.NODE_ENV !== 'production';
+    const domain = process.env.DOMAIN || 'soltradeview.com'; // Fallback domain
+    
     console.log(chalk.blue('Mode:'), isDev ? chalk.yellow('Development') : chalk.green('Production'));
     console.log(chalk.blue('Server:'), chalk.green(`Running on port ${port}`));
     console.log(chalk.blue('RPC Endpoint:'), chalk.gray(process.env.SOLANA_RPC_ENDPOINT));
     console.log('\n');
     
     console.log(chalk.white.bold('Available Endpoints:'));
-    const baseUrl = isDev ? `http://localhost:${port}` : `https://${process.env.DOMAIN}`;
+    const baseUrl = isDev ? 
+        `http://localhost:${port}` : 
+        `https://${domain}`;
+        
     console.log(chalk.red(`• Webhook:   ${baseUrl}/webhook`));
     console.log(chalk.yellow(`• Dashboard: ${baseUrl}/dashboard.html`));
     console.log(chalk.yellow(`• API:       ${baseUrl}/api/trades`));
