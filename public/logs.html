@@ -214,22 +214,28 @@
                 const response = await fetch('/api/logs');
                 const data = await response.json();
                 
-                // Group trades by their common attributes to consolidate status
+                // Group trades by their common attributes and keep only final states
                 const consolidatedTrades = data.tradeLogs.reduce((acc, log) => {
-                    // Extract identifying information from the metadata
                     const metadata = log.metadata || {};
                     const request = metadata.request || {};
                     const tradeId = `${request.timestamp || log.timestamp}-${metadata.action}-${request.position_size}`;
                     
-                    // If this trade doesn't exist in our accumulator or this is a success/error message, update it
-                    if (!acc[tradeId] || 
-                        log.message?.includes('successfully') || 
-                        log.message?.includes('failed')) {
+                    // If this is a success or error message, it overrides any existing state
+                    if (log.message?.includes('successfully') || log.message?.includes('failed')) {
                         acc[tradeId] = {
                             ...log,
                             isSuccess: log.message?.includes('successfully'),
                             isError: log.message?.includes('failed'),
-                            isPending: log.message?.includes('received'),
+                            isPending: false, // Never show pending for completed trades
+                            timestamp: request.timestamp || log.timestamp,
+                        };
+                    } else if (!acc[tradeId]) {
+                        // Only add pending trades if we don't have a success/error for this trade
+                        acc[tradeId] = {
+                            ...log,
+                            isSuccess: false,
+                            isError: false,
+                            isPending: true,
                             timestamp: request.timestamp || log.timestamp,
                         };
                     }
@@ -252,12 +258,6 @@
                         const metadata = log.metadata || {};
                         const request = metadata.request || {};
                         
-                        const getStatusEmoji = (log) => {
-                            if (log.isSuccess) return '🟢'; // Green circle for success
-                            if (log.isError) return '🔴';   // Red circle for error
-                            return '🟡';                    // Yellow circle for pending
-                        };
-                        
                         return `
                             <tr class="border-b border-gray-700 hover:bg-gray-700/50 transition-colors duration-150 cursor-pointer" 
                                 onclick="toggleDetails(${index})">
@@ -266,7 +266,7 @@
                                 </td>
                                 <td class="px-6 py-3">
                                     <div class="flex items-center space-x-2">
-                                        <span class="text-xl">${getStatusEmoji(log)}</span>
+                                        <span class="text-xl">${log.isSuccess ? '🟢' : log.isError ? '🔴' : '🟡'}</span>
                                         <span class="${statusClass} text-xs rounded-full px-2 py-1">
                                             ${log.isSuccess ? 'SUCCESS' : log.isError ? 'ERROR' : 'PENDING'}
                                         </span>
