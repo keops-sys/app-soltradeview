@@ -10,7 +10,6 @@ import chalk from 'chalk';
 import figlet from 'figlet';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
-import path from 'path';
 
 // Load environment variables
 dotenv.config();
