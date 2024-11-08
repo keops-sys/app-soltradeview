@@ -201,6 +201,52 @@
                 const response = await fetch('/api/logs');
                 const data = await response.json();
                 
+                // Create a map to track pending-to-success times
+                const pendingToSuccessMap = new Map();
+                const completedTrades = new Set();
+
+                // First pass to collect pending timestamps
+                data.tradeLogs.forEach(log => {
+                    if (log.metadata?.tradeId) {
+                        if (!log.message.includes('successfully') && !log.message.includes('error')) {
+                            // Store pending timestamp
+                            pendingToSuccessMap.set(log.metadata.tradeId, new Date(log.timestamp));
+                        }
+                    }
+                });
+
+                // Second pass to calculate response times and count completed trades
+                let totalResponseTime = 0;
+                let successfulTradesCount = 0;
+
+                data.tradeLogs.forEach(log => {
+                    if (log.metadata?.tradeId && log.message.includes('successfully')) {
+                        const pendingTime = pendingToSuccessMap.get(log.metadata.tradeId);
+                        if (pendingTime) {
+                            const successTime = new Date(log.timestamp);
+                            const responseTime = successTime - pendingTime;
+                            totalResponseTime += responseTime;
+                            successfulTradesCount++;
+                            completedTrades.add(log.metadata.tradeId);
+                        }
+                    }
+                });
+
+                // Calculate average response time
+                const avgResponseTime = successfulTradesCount > 0 
+                    ? Math.round(totalResponseTime / successfulTradesCount) 
+                    : 0;
+
+                // Update the stats with the new calculations
+                const totalTrades = completedTrades.size;
+                const successRate = totalTrades ? ((successfulTradesCount / totalTrades) * 100).toFixed(1) : 0;
+                const errorRate = totalTrades ? ((data.errorLogs.length / totalTrades) * 100).toFixed(1) : 0;
+
+                document.getElementById('totalTrades').textContent = totalTrades;
+                document.getElementById('successRate').textContent = `${successRate}%`;
+                document.getElementById('errorRate').textContent = `${errorRate}%`;
+                document.getElementById('avgTime').textContent = `${avgResponseTime}ms`;
+
                 // Filter and process trade logs
                 const tradeLogs = data.tradeLogs.filter(log => 
                     !log.message.includes('Application started') &&
@@ -292,9 +338,6 @@
                         </tr>
                     `)
                     .join('');
-
-                // Update stats
-                updateStats(data.tradeLogs, data.errorLogs);
             } catch (error) {
                 console.error('Error fetching logs:', error);
             }
