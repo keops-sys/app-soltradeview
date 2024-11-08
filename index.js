@@ -568,38 +568,44 @@ app.get('/api/trades', async (req, res) => {
 
 app.get('/api/logs', async (req, res) => {
   try {
-      const errorLogPath = path.join(__dirname, '../logs/error.log');
-      const tradeLogPath = path.join(__dirname, '../logs/trades.log');
+      // Use proper path resolution
+      const errorLogPath = path.join(__dirname, 'logs', 'error.log');
+      const tradeLogPath = path.join(__dirname, 'logs', 'trades.log');
       
+      // Read files using proper promise-based fs
       const [errorLogs, tradeLogs] = await Promise.all([
-          fs.readFile(errorLogPath, 'utf8'),
-          fs.readFile(tradeLogPath, 'utf8')
+          fs.promises.readFile(errorLogPath, 'utf8'),
+          fs.promises.readFile(tradeLogPath, 'utf8')
       ]);
 
-      // Parse logs
-      const parsedErrorLogs = errorLogs
-          .split('\n')
-          .filter(Boolean)
-          .map(line => {
-              const [timestamp, level, ...rest] = line.split('] ');
-              return {
-                  timestamp: timestamp.slice(1),
-                  type: level.slice(0, -1),
-                  ...JSON.parse(rest.join('] '))
-              };
-          });
+      // Parse logs with error handling
+      const parseLogs = (content) => {
+          return content
+              .split('\n')
+              .filter(line => line.trim())
+              .map(line => {
+                  try {
+                      const match = line.match(/\[(.*?)\] (\w+): (.*)/);
+                      if (!match) return null;
+                      
+                      const [_, timestamp, level, jsonStr] = match;
+                      const data = JSON.parse(jsonStr);
+                      
+                      return {
+                          timestamp,
+                          type: level,
+                          ...data
+                      };
+                  } catch (err) {
+                      console.error('Error parsing log line:', err);
+                      return null;
+                  }
+              })
+              .filter(log => log !== null);
+      };
 
-      const parsedTradeLogs = tradeLogs
-          .split('\n')
-          .filter(Boolean)
-          .map(line => {
-              const [timestamp, level, ...rest] = line.split('] ');
-              return {
-                  timestamp: timestamp.slice(1),
-                  type: level.slice(0, -1),
-                  ...JSON.parse(rest.join('] '))
-              };
-          });
+      const parsedErrorLogs = parseLogs(errorLogs);
+      const parsedTradeLogs = parseLogs(tradeLogs);
 
       res.json({
           errorLogs: parsedErrorLogs,
@@ -607,13 +613,16 @@ app.get('/api/logs', async (req, res) => {
       });
   } catch (error) {
       console.error('Error loading logs:', error);
-      res.status(500).json({ error: 'Failed to load logs' });
+      res.status(500).json({ 
+          error: 'Failed to load logs',
+          details: error.message 
+      });
   }
 });
 
-// Serve the logs page
+// Update the logs page route to use proper path resolution
 app.get('/logs', (req, res) => {
-  res.sendFile(path.join(__dirname, '.logs.html'));
+    res.sendFile(path.join(__dirname, 'public', 'logs.html'));
 });
 
 
