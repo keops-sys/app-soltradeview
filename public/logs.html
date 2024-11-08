@@ -214,35 +214,27 @@
                 const response = await fetch('/api/logs');
                 const data = await response.json();
                 
-                // Group trades by their common attributes and keep only final states
+                // Group trades by tradeId
                 const consolidatedTrades = data.tradeLogs.reduce((acc, log) => {
-                    const metadata = log.metadata || {};
-                    const request = metadata.request || {};
-                    const tradeId = `${request.timestamp || log.timestamp}-${metadata.action}-${request.position_size}`;
+                    const tradeId = log.metadata?.tradeId;
+                    if (!tradeId) return acc;
                     
-                    // If this is a success or error message, it overrides any existing state
-                    if (log.message?.includes('successfully') || log.message?.includes('failed')) {
+                    // If this is a success/error message or we don't have this trade yet
+                    if (log.message?.includes('successfully') || 
+                        log.message?.includes('failed') || 
+                        !acc[tradeId]) {
                         acc[tradeId] = {
                             ...log,
                             isSuccess: log.message?.includes('successfully'),
                             isError: log.message?.includes('failed'),
-                            isPending: false, // Never show pending for completed trades
-                            timestamp: request.timestamp || log.timestamp,
-                        };
-                    } else if (!acc[tradeId]) {
-                        // Only add pending trades if we don't have a success/error for this trade
-                        acc[tradeId] = {
-                            ...log,
-                            isSuccess: false,
-                            isError: false,
-                            isPending: true,
-                            timestamp: request.timestamp || log.timestamp,
+                            isPending: !log.message?.includes('successfully') && !log.message?.includes('failed')
                         };
                     }
+                    
                     return acc;
                 }, {});
 
-                // Convert back to array and sort by timestamp
+                // Convert to array and sort by timestamp
                 const tradeLogs = Object.values(consolidatedTrades)
                     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
                 

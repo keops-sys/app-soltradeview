@@ -20,6 +20,7 @@ import {
 } from '@solana/web3.js';
 import { Wallet } from '@project-serum/anchor';
 import bs58 from 'bs58';
+import crypto from 'crypto';
 dotenv.config();
 
 const MIN_SOL_BALANCE = process.env.MIN_SOL_BALANCE || 0.1;
@@ -519,12 +520,15 @@ app.post('/webhook', async (req, res) => {
     
     // Log trade request
     logger.info('Trade request received', {
-      action,
-      order_size,
-      position_size,
-      token,
-      price,
-      timestamp: new Date().toISOString()
+      metadata: {
+        tradeId: crypto.randomUUID(),
+        action,
+        order_size,
+        position_size,
+        token,
+        price,
+        timestamp: new Date().toISOString()
+      }
     });
 
     // Check balance
@@ -547,15 +551,18 @@ app.post('/webhook', async (req, res) => {
     
     // Log successful trade
     logger.info('Trade executed successfully', {
-      action,
-      amount,
-      token,
-      price,
-      executionTime: `${executionTime}ms`,
-      txHash: result.signature,
-      blockTime: result.blockTime,
-      fee: result.fee,
-      slot: result.slot
+      metadata: {
+        tradeId: crypto.randomUUID(),
+        action,
+        amount,
+        token,
+        price,
+        executionTime: `${executionTime}ms`,
+        txHash: result.signature,
+        blockTime: result.blockTime,
+        fee: result.fee,
+        slot: result.slot
+      }
     });
 
     // Track in PostHog
@@ -579,10 +586,13 @@ app.post('/webhook', async (req, res) => {
     
     // Log error with full context
     logger.error('Trade execution failed', {
-      error: error.message,
-      stack: error.stack,
-      executionTime: `${executionTime}ms`,
-      request: req.body
+      metadata: {
+        tradeId: crypto.randomUUID(),
+        error: error.message,
+        stack: error.stack,
+        executionTime: `${executionTime}ms`,
+        request: req.body
+      }
     });
 
     res.status(500).json({ status: 'error', message: error.message });
