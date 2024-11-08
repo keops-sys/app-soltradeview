@@ -9,16 +9,44 @@ import path from 'path';
 import fs from 'fs';
 import https from 'https';
 import http from 'node:http';
-// Load SSL certificates
-const privateKey = fs.readFileSync('/root/.acme.sh/soltradeview.com_ecc/soltradeview.com.key', 'utf8');
-const certificate = fs.readFileSync('/root/.acme.sh/soltradeview.com_ecc/fullchain.cer', 'utf8');
-const ca = fs.readFileSync('/root/.acme.sh/soltradeview.com_ecc/ca.cer', 'utf8');
-const credentials = {
-  key: privateKey,
-  cert: certificate,
-  ca: ca,
+// Load SSL certificates only in production
+const getSSLCredentials = () => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('Development mode: Using dummy SSL credentials');
+    return {
+      // Development certificates - you might want to add local dev certs here
+      // or just return empty object
+      key: '',
+      cert: '',
+      ca: ''
+    };
+  }
+
+  // Check if we're on the production server
+  const certPath = '/root/.acme.sh/soltradeview.com_ecc';
+  if (!fs.existsSync(certPath)) {
+    console.warn(`Production SSL path ${certPath} not found.`);
+    console.warn('If running locally, make sure NODE_ENV is not set to "production"');
+    return {};
+  }
+
+  try {
+    return {
+      key: fs.readFileSync(`${certPath}/soltradeview.com.key`, 'utf8'),
+      cert: fs.readFileSync(`${certPath}/fullchain.cer`, 'utf8'),
+      ca: fs.readFileSync(`${certPath}/ca.cer`, 'utf8'),
+    };
+  } catch (error) {
+    console.error('Failed to load SSL certificates:', error.message);
+    if (process.env.NODE_ENV === 'production') {
+      console.error('Cannot start production server without SSL certificates');
+      process.exit(1);
+    }
+    return {};
+  }
 };
 
+const credentials = getSSLCredentials();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,7 +57,6 @@ import {
   PublicKey,
   TransactionExpiredBlockheightExceededError,
   LAMPORTS_PER_SOL,
-  RateLimitError
 } from '@solana/web3.js';
 import dotenv from 'dotenv';
 import { Wallet } from '@project-serum/anchor';
@@ -62,7 +89,7 @@ const createRateLimitedConnection = () => {
         try {
           return await fetch(url, options);
         } catch (error) {
-          if (error instanceof RateLimitError) {
+          if (error) {
             const delay = baseDelay * Math.pow(2, attempt);
             console.log(`Rate limit hit, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
             await new Promise(resolve => setTimeout(resolve, delay));
@@ -386,18 +413,26 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-const httpsServer = https.createServer(credentials, app);
+// Server setup based on environment
+if (process.env.NODE_ENV === 'production') {
+  // HTTP server for redirects
+  const httpApp = express();
+  httpApp.use((req, res) => {
+    res.redirect(`https://${req.headers.host}${req.url}`);
+  });
 
-httpsServer.listen(443, () => {
-  console.log('HTTPS Server running on port 443');
-});
+  // Start HTTP server for redirects
+  http.createServer(httpApp).listen(80, () => {
+    console.log('HTTP Server running on port 80 and redirecting to HTTPS');
+  });
 
-
-const httpApp = express();
-httpApp.use((req, res) => {
-  res.redirect(`https://${req.headers.host}${req.url}`);
-});
-
-http.createServer(httpApp).listen(80, () => {
-  console.log('HTTP Server running on port 80 and redirecting to HTTPS');
-});
+  // Start HTTPS server
+  https.createServer(credentials, app).listen(443, () => {
+    console.log('HTTPS Server running on port 443');
+  });
+} else {
+  // Development: just HTTP server on port 3000
+  app.listen(3000, () => {
+    console.log('Development server running on port 3000');
+  });
+}
