@@ -135,7 +135,7 @@
                                 <th class="px-6 py-3 font-semibold">Timestamp</th>
                                 <th class="px-6 py-3 font-semibold">Status</th>
                                 <th class="px-6 py-3 font-semibold">Message</th>
-                                <th class="px-6 py-3 font-semibold">Details</th>
+                                <th class="px-6 py-3 font-semibold">Action</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-700"></tbody>
@@ -372,13 +372,11 @@
         const formatMetadata = (metadata) => {
             if (!metadata) return 'N/A';
             
-            const details = [];
-            if (metadata.action) details.push(`<span class="${metadata.action === 'buy' ? 'text-green-400' : 'text-red-400'}">${metadata.action.toUpperCase()}</span>`);
-            if (metadata.ticker) details.push(`<span class="text-cyan-400">${metadata.ticker}</span>`);
-            if (metadata.execution_price) details.push(`<span class="text-green-400">$${metadata.execution_price}</span>`);
-            if (metadata.execution_time) details.push(`<span class="text-gray-400">${metadata.execution_time}</span>`);
+            if (metadata.action) {
+                return `<span class="${metadata.action === 'buy' ? 'text-green-400' : 'text-red-400'}">${metadata.action.toUpperCase()}</span>`;
+            }
             
-            return details.join(' <span class="text-gray-600">|</span> ');
+            return 'N/A';
         };
 
         // Initial fetch and auto-refresh
