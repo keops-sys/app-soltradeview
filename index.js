@@ -22,6 +22,10 @@ import { Wallet } from '@project-serum/anchor';
 import bs58 from 'bs58';
 dotenv.config();
 
+const MIN_SOL_BALANCE = process.env.MIN_SOL_BALANCE || 0.1;
+
+
+
 // Validate required environment variables
 const requiredEnvVars = [
     'DOMAIN',
