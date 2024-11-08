@@ -201,51 +201,8 @@
                 const response = await fetch('/api/logs');
                 const data = await response.json();
                 
-                // Create a map to track pending-to-success times
-                const pendingToSuccessMap = new Map();
-                const completedTrades = new Set();
-
-                // First pass to collect pending timestamps
-                data.tradeLogs.forEach(log => {
-                    if (log.metadata?.tradeId) {
-                        if (!log.message.includes('successfully') && !log.message.includes('error')) {
-                            // Store pending timestamp
-                            pendingToSuccessMap.set(log.metadata.tradeId, new Date(log.timestamp));
-                        }
-                    }
-                });
-
-                // Second pass to calculate response times and count completed trades
-                let totalResponseTime = 0;
-                let successfulTradesCount = 0;
-
-                data.tradeLogs.forEach(log => {
-                    if (log.metadata?.tradeId && log.message.includes('successfully')) {
-                        const pendingTime = pendingToSuccessMap.get(log.metadata.tradeId);
-                        if (pendingTime) {
-                            const successTime = new Date(log.timestamp);
-                            const responseTime = successTime - pendingTime;
-                            totalResponseTime += responseTime;
-                            successfulTradesCount++;
-                            completedTrades.add(log.metadata.tradeId);
-                        }
-                    }
-                });
-
-                // Calculate average response time
-                const avgResponseTime = successfulTradesCount > 0 
-                    ? Math.round(totalResponseTime / successfulTradesCount) 
-                    : 0;
-
-                // Update the stats with the new calculations
-                const totalTrades = completedTrades.size;
-                const successRate = totalTrades ? ((successfulTradesCount / totalTrades) * 100).toFixed(1) : 0;
-                const errorRate = totalTrades ? ((data.errorLogs.length / totalTrades) * 100).toFixed(1) : 0;
-
-                document.getElementById('totalTrades').textContent = totalTrades;
-                document.getElementById('successRate').textContent = `${successRate}%`;
-                document.getElementById('errorRate').textContent = `${errorRate}%`;
-                document.getElementById('avgTime').textContent = `${avgResponseTime}ms`;
+                // Debug log to see the structure
+                console.log('Received log data:', data);
 
                 // Filter and process trade logs
                 const tradeLogs = data.tradeLogs.filter(log => 
@@ -253,10 +210,15 @@
                     (log.message.includes('Trade') || log.message.includes('transaction'))
                 );
 
+                // Debug log to see filtered logs
+                console.log('Filtered trade logs:', tradeLogs);
+
                 // Populate trade logs with formatted timestamp
                 const tradeLogsBody = document.querySelector('#tradeLogs tbody');
                 tradeLogsBody.innerHTML = tradeLogs
                     .map((log, index) => {
+                        console.log('Processing log:', log); // Debug individual log
+
                         const isSuccess = log.message.includes('successfully');
                         const isError = log.message.includes('error');
                         
@@ -265,6 +227,9 @@
                                                   'bg-orange-500/20 text-orange-400';
                         
                         const pulseClass = !isSuccess && !isError ? 'pulse' : '';
+
+                        // Extract data from request if available
+                        const request = log.metadata?.request || {};
                         
                         return `
                             <tr class="border-b border-gray-700 hover:bg-gray-700/50 transition-colors duration-150 cursor-pointer" 
@@ -282,8 +247,8 @@
                                 </td>
                                 <td class="px-6 py-3">${log.message}</td>
                                 <td class="px-6 py-3">
-                                    <span class="${log.metadata?.action === 'buy' ? 'text-green-400' : 'text-red-400'}">
-                                        ${log.metadata?.action?.toUpperCase() || 'N/A'}
+                                    <span class="${request.action === 'buy' ? 'text-green-400' : 'text-red-400'}">
+                                        ${request.action ? request.action.toUpperCase() : 'N/A'}
                                     </span>
                                 </td>
                             </tr>
@@ -296,21 +261,17 @@
                                                 <div class="space-y-2 text-sm">
                                                     <div class="flex items-center space-x-2">
                                                         <span class="text-gray-400">Pair:</span>
-                                                        <span class="text-cyan-400">${log.metadata?.pair || 'N/A'}</span>
+                                                        <span class="text-cyan-400">${request.ticker || 'N/A'}</span>
                                                     </div>
                                                     <div class="flex items-center space-x-2">
                                                         <span class="text-gray-400">Direction:</span>
-                                                        <span class="${log.metadata?.action === 'buy' ? 'text-green-400' : 'text-red-400'}">
-                                                            ${log.metadata?.action?.toUpperCase() || 'N/A'}
+                                                        <span class="${request.action === 'buy' ? 'text-green-400' : 'text-red-400'}">
+                                                            ${request.action ? request.action.toUpperCase() : 'N/A'}
                                                         </span>
                                                     </div>
                                                     <div class="flex items-center space-x-2">
-                                                        <span class="text-gray-400">USDC Amount:</span>
-                                                        <span class="text-white">${formatUSDC(log.metadata?.usdc_amount)}</span>
-                                                    </div>
-                                                    <div class="flex items-center space-x-2">
-                                                        <span class="text-gray-400">SOL Amount:</span>
-                                                        <span class="text-white">${formatSOL(log.metadata?.sol_amount)}</span>
+                                                        <span class="text-gray-400">Position Size:</span>
+                                                        <span class="text-white">${request.position_size || 'N/A'}</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -320,10 +281,6 @@
                                                     <div class="flex items-center space-x-2">
                                                         <span class="text-gray-400">Execution Time:</span>
                                                         <span class="text-yellow-400">${formatExecutionTime(log.metadata?.executionTime)}</span>
-                                                    </div>
-                                                    <div class="flex items-center space-x-2">
-                                                        <span class="text-gray-400">Average Price:</span>
-                                                        <span class="text-white">${formatPrice(log.metadata?.average_price)}</span>
                                                     </div>
                                                     ${isError ? `
                                                     <div class="mt-4">
