@@ -205,7 +205,38 @@
         const fetchLogs = async () => {
             try {
                 const response = await fetch('/api/logs');
-                const tradeLogs = await response.json();
+                const data = await response.json();
+                
+                // Convert the log string into an array of log objects
+                const tradeLogs = data
+                    .split('\n')
+                    .filter(line => line.trim())
+                    .map(line => {
+                        try {
+                            const match = line.match(/\[(.*?)\] (\w+): (.*)/);
+                            if (match) {
+                                const [, timestamp, level, rest] = match;
+                                const messageAndMetadata = rest.split('{');
+                                const message = messageAndMetadata[0].trim();
+                                const metadataStr = '{' + (messageAndMetadata[1] || '{}');
+                                const metadata = JSON.parse(metadataStr);
+                                
+                                return {
+                                    timestamp,
+                                    level,
+                                    message,
+                                    metadata
+                                };
+                            }
+                            return null;
+                        } catch (e) {
+                            console.error('Error parsing log line:', e);
+                            return null;
+                        }
+                    })
+                    .filter(log => log !== null);
+
+                console.log('Parsed trade logs:', tradeLogs); // Debug log
                 
                 const tradeLogsBody = document.querySelector('#tradeLogs tbody');
                 tradeLogsBody.innerHTML = tradeLogs
@@ -301,6 +332,11 @@
                         `;
                     })
                     .join('');
+
+                // Update stats
+                const errorLogs = tradeLogs.filter(log => log.message.includes('failed'));
+                updateStats(tradeLogs, errorLogs);
+
             } catch (error) {
                 console.error('Error fetching logs:', error);
             }
@@ -326,8 +362,8 @@
         };
 
         // Helper function to format execution time
-        const formatExecutionTime = (executionTime) => {
-            if (!executionTime) return 'N/A';
+        const formatExecutionTime = (time) => {
+            if (!time) return 'N/A';
             return time.includes('ms') ? time : `${time}ms`;
         };
 
