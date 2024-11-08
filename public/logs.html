@@ -1,1 +1,114 @@
- 
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logs - Soltradeview</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="font-inter antialiased bg-slate-900 text-slate-100 tracking-tight">
+    <div class="flex flex-col min-h-screen overflow-hidden supports-[overflow:clip]:overflow-clip">
+        <main class="grow pt-32">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6">
+                <!-- Trade Logs Section -->
+                <section class="mb-12">
+                    <div class="bg-slate-800 rounded-3xl p-6">
+                        <h2 class="text-xl font-semibold mb-6 flex items-center">
+                            <svg class="w-5 h-5 mr-2 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                            </svg>
+                            Trade Logs
+                        </h2>
+                        <div class="overflow-x-auto">
+                            <table class="w-full" id="tradeLogs">
+                                <thead class="text-xs uppercase text-slate-400 bg-slate-700/30">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left">Timestamp</th>
+                                        <th class="px-4 py-3 text-left">Type</th>
+                                        <th class="px-4 py-3 text-left">Action</th>
+                                        <th class="px-4 py-3 text-left">Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-700"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Error Logs Section -->
+                <section class="mb-12">
+                    <div class="bg-slate-800 rounded-3xl p-6">
+                        <h2 class="text-xl font-semibold mb-6 flex items-center">
+                            <svg class="w-5 h-5 mr-2 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            Error Logs
+                        </h2>
+                        <div class="overflow-x-auto">
+                            <table class="w-full" id="errorLogs">
+                                <thead class="text-xs uppercase text-slate-400 bg-slate-700/30">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left">Timestamp</th>
+                                        <th class="px-4 py-3 text-left">Error</th>
+                                        <th class="px-4 py-3 text-left">Request</th>
+                                        <th class="px-4 py-3 text-left">Execution Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-700"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        async function fetchLogs() {
+            try {
+                const response = await fetch('/api/logs');
+                const data = await response.json();
+                
+                // Populate trade logs
+                const tradeLogsBody = document.querySelector('#tradeLogs tbody');
+                tradeLogsBody.innerHTML = data.tradeLogs.map(log => `
+                    <tr class="bg-slate-800/30">
+                        <td class="px-4 py-3 text-sm">${log.timestamp}</td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 text-xs font-semibold ${log.type === 'INFO' ? 'text-green-400 bg-green-400/10' : 'text-red-400 bg-red-400/10'} rounded-full">
+                                ${log.type}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-sm">${log.action}</td>
+                        <td class="px-4 py-3 text-sm">${log.details}</td>
+                    </tr>
+                `).join('');
+
+                // Populate error logs
+                const errorLogsBody = document.querySelector('#errorLogs tbody');
+                errorLogsBody.innerHTML = data.errorLogs.map(log => `
+                    <tr class="bg-slate-800/30">
+                        <td class="px-4 py-3 text-sm">${log.timestamp}</td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 text-xs font-semibold text-red-400 bg-red-400/10 rounded-full">
+                                ${log.metadata.error || 'Unknown error'}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-sm">
+                            ${log.metadata.request ? `${log.metadata.request.ticker} ${log.metadata.request.action} ${log.metadata.request.order_size}` : 'N/A'}
+                        </td>
+                        <td class="px-4 py-3 text-sm">${log.metadata.executionTime || 'N/A'}</td>
+                    </tr>
+                `).join('');
+
+            } catch (error) {
+                console.error('Error fetching logs:', error);
+            }
+        }
+
+        // Fetch logs immediately and then every 30 seconds
+        fetchLogs();
+        setInterval(fetchLogs, 30000);
+    </script>
+</body>
+</html> 
