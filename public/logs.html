@@ -205,7 +205,7 @@
         const fetchLogs = async () => {
             try {
                 const response = await fetch('/api/logs');
-                const data = await response.json();
+                const data = await response.text();
                 
                 // Convert the log string into an array of log objects
                 const tradeLogs = data
@@ -216,11 +216,20 @@
                             const match = line.match(/\[(.*?)\] (\w+): (.*)/);
                             if (match) {
                                 const [, timestamp, level, rest] = match;
-                                const messageAndMetadata = rest.split('{');
-                                const message = messageAndMetadata[0].trim();
-                                const metadataStr = '{' + (messageAndMetadata[1] || '{}');
-                                const metadata = JSON.parse(metadataStr);
-                                
+                                let message = rest;
+                                let metadata = {};
+
+                                // Try to extract metadata if it exists
+                                const metadataStart = rest.indexOf('{');
+                                if (metadataStart !== -1) {
+                                    message = rest.substring(0, metadataStart).trim();
+                                    try {
+                                        metadata = JSON.parse(rest.substring(metadataStart));
+                                    } catch (e) {
+                                        console.warn('Failed to parse metadata:', e);
+                                    }
+                                }
+
                                 return {
                                     timestamp,
                                     level,
