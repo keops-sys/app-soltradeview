@@ -167,7 +167,7 @@ const SEND_OPTIONS = {
   skipPreflight: true,
   maxRetries: 3,
   computeUnits: 1_000_000,    
-  priorityFee: 10_000_000,    // 0.01 SOL priority fee
+  priorityFee: 50_000_000,    // Increased priority fee to 0.05 SOL
 };
 
 async function calculateTradeAmount(inputMint, action, quote) {
@@ -263,20 +263,33 @@ async function calculateTradeAmount(inputMint, action, quote) {
  * Fetch quote from Jupiter API
  */
 async function getQuote(amount, action = 'sell') {
-  try {
-    // Swap mints based on action
-    const [inputMint, outputMint] = action === 'buy' 
-      ? [OUTPUT_MINT, INPUT_MINT]   // For buy: USDC -> SOL
-      : [INPUT_MINT, OUTPUT_MINT];  // For sell: SOL -> USDC
+  const maxRetries = 3;
+  let lastError;
 
-    const url = `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=${SLIPPAGE_BPS}`;
-    console.log('Quote URL:', url);
-    const response = await fetch(url);
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching quote:', error);
-    throw error;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const [inputMint, outputMint] = action === 'buy' 
+        ? [OUTPUT_MINT, INPUT_MINT]   // For buy: USDC -> SOL
+        : [INPUT_MINT, OUTPUT_MINT];  // For sell: SOL -> USDC
+
+      const url = `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=${SLIPPAGE_BPS}`;
+      console.log('Quote URL:', url);
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      lastError = error;
+      if (attempt === maxRetries - 1) throw error;
+      
+      const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+      console.log(`Quote attempt ${attempt + 1} failed, retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
   }
+  throw lastError;
 }
 
 /**
@@ -323,6 +336,11 @@ async function sendAndConfirmTransaction({ connection, serializedTransaction, bl
   const controller = new AbortController();
   const abortSignal = controller.signal;
   const maxRetries = 3;
+  const confirmationStrategy = {
+    signature: '',
+    lastValidBlockHeight: 0,
+    timeout: 60000, // 60 second timeout
+  };
 
   try {
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -340,9 +358,9 @@ async function sendAndConfirmTransaction({ connection, serializedTransaction, bl
         console.log(`Attempt ${attempt + 1}: Transaction sent. Signature:`, signature);
 
         // Start resender in background
-        abortableResender(connection, serializedTransaction, abortSignal);
+        const resenderPromise = abortableResender(connection, serializedTransaction, abortSignal);
 
-        // Wait for confirmation with shorter timeout
+        // Wait for confirmation with updated parameters
         const confirmation = await connection.confirmTransaction({
           signature,
           blockhash: latestBlockhash.blockhash,
@@ -357,9 +375,19 @@ async function sendAndConfirmTransaction({ connection, serializedTransaction, bl
         return signature;
       } catch (error) {
         console.error(`Attempt ${attempt + 1} failed:`, error);
-        if (attempt === maxRetries - 1) throw error;
-        // Wait before retry
-        await wait(2000);
+        
+        // Check if we should retry
+        if (error instanceof TransactionExpiredBlockheightExceededError ||
+            error.message.includes('429') ||
+            error.message.includes('Too Many Requests')) {
+          if (attempt === maxRetries - 1) throw error;
+          // Exponential backoff
+          const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+          console.log(`Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        throw error;
       }
     }
   } finally {
