@@ -67,15 +67,22 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
-app.use((req, res, next) => {
-  if (!req.secure) {
-    return res.redirect(301, `https://www.${req.headers.host}${req.url}`);
-  } else if (!req.headers.host.startsWith('www.')) {
-    return res.redirect(301, `https://www.${req.headers.host}${req.url}`);
+
+// Middleware to ensure www prefix
+const ensureWWW = (req, res, next) => {
+  // Get the host without port number if present
+  const host = req.headers.host.split(':')[0];
+  
+  if (!host.startsWith('www.')) {
+    // Redirect non-www to www while maintaining protocol
+    const protocol = req.protocol;
+    return res.redirect(301, `${protocol}://www.${host}${req.url}`);
   }
   next();
-});
+};
 
+// Apply www redirect middleware to main app
+app.use(ensureWWW);
 
 // Replace the simple connection with a rate-limited connection handler
 const createRateLimitedConnection = () => {
@@ -418,20 +425,12 @@ if (process.env.NODE_ENV === 'production') {
   // HTTP server for redirects
   const httpApp = express();
   httpApp.use((req, res) => {
-    // Get the host without port number if present
     const host = req.headers.host.split(':')[0];
-    
-    // If accessing non-www domain, redirect to www
-    if (!host.startsWith('www.')) {
-      const wwwHost = `www.${host}`;
-      return res.redirect(301, `https://${wwwHost}${req.url}`);
-    }
-    
-    // Otherwise, just redirect to HTTPS
-    return res.redirect(301, `https://${host}${req.url}`);
+    const wwwHost = host.startsWith('www.') ? host : `www.${host}`;
+    return res.redirect(301, `https://${wwwHost}${req.url}`);
   });
 
-  // Start HTTP server for redirects
+  // Start HTTP server
   http.createServer(httpApp).listen(80, () => {
     console.log('HTTP Server running on port 80 and redirecting to HTTPS/WWW');
   });
@@ -441,7 +440,7 @@ if (process.env.NODE_ENV === 'production') {
     console.log('HTTPS Server running on port 443');
   });
 } else {
-  // Development: just HTTP server on port 3000
+  // Development server
   app.listen(3000, () => {
     console.log('Development server running on port 3000');
   });
