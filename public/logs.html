@@ -177,25 +177,41 @@
     </div>
 
     <script>
-        // Timestamp formatting function
-        const formatTimestamp = (isoString) => {
-            const date = new Date(isoString);
-            
-            // Format date components
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            const year = date.getFullYear();
-            
-            // Format time components
-            const hours = String(date.getHours()).padStart(2, '0');
-            const minutes = String(date.getMinutes()).padStart(2, '0');
-            const seconds = String(date.getSeconds()).padStart(2, '0');
-            const milliseconds = String(date.getMilliseconds()).padStart(3, '0');
-
-            // Combine into final format
-            return `${month}/${day}/${year} ${hours}:${minutes}:${seconds}.${milliseconds}`;
+        // Helper functions - place these at the top of your script
+        const formatTimestamp = (timestamp) => {
+            if (!timestamp) return 'N/A';
+            return new Date(timestamp).toLocaleString();
         };
 
+        const formatExecutionTime = (time) => {
+            if (!time) return 'N/A';
+            return time.includes('ms') ? time : `${time}ms`;
+        };
+
+        const formatUSDC = (amount) => {
+            if (!amount) return 'N/A';
+            return `$${parseFloat(amount).toFixed(2)}`;
+        };
+
+        const formatSOL = (amount) => {
+            if (!amount) return 'N/A';
+            return `${parseFloat(amount).toFixed(4)} SOL`;
+        };
+
+        const formatPrice = (price) => {
+            if (!price) return 'N/A';
+            return `$${parseFloat(price).toFixed(2)}`;
+        };
+
+        // Toggle function for expanding/collapsing details
+        const toggleDetails = (index) => {
+            const detailsRow = document.querySelector(`[data-details="${index}"]`);
+            if (detailsRow) {
+                detailsRow.classList.toggle('hidden');
+            }
+        };
+
+        // Main fetch function
         const fetchLogs = async () => {
             try {
                 const response = await fetch('/api/logs');
@@ -384,27 +400,6 @@
                 parentRow.classList.remove('expanded-row');
             }
         }
-
-        // Add these helper functions for formatting
-        const formatUSDC = (amount) => {
-            if (!amount) return 'N/A';
-            return `$${parseFloat(amount).toFixed(2)}`;
-        };
-
-        const formatSOL = (amount) => {
-            if (!amount) return 'N/A';
-            return `${parseFloat(amount).toFixed(4)} SOL`;
-        };
-
-        const formatPrice = (price) => {
-            if (!price) return 'N/A';
-            return `$${parseFloat(price).toFixed(2)}`;
-        };
-
-        const formatExecutionTime = (time) => {
-            if (!time) return 'N/A';
-            return time.includes('ms') ? time : `${time}ms`;
-        };
     </script>
 </body>
 </html> 
