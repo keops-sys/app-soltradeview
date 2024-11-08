@@ -367,6 +367,96 @@ async function sendAndConfirmTransaction({ connection, serializedTransaction, bl
   }
 }
 
+async function executeTrade(action, amount, token, price) {
+  console.log('Received alert, starting swap process.');
+  
+  // Validate action
+  if (!['buy', 'sell'].includes(action)) {
+    throw new Error('Invalid action: must be "buy" or "sell"');
+  }
+
+  // Get initial quote to determine price and amounts
+  let initialAmount = action === 'buy' ? 1_000_000 : 1_000_000_000; // 1 USDC or 1 SOL for price check
+  console.log('Getting initial price quote with amount:', initialAmount);
+  const priceQuote = await getQuote(initialAmount, action);
+  console.log('Price quote response:', priceQuote);
+  
+  // Calculate actual trade amount based on amount parameter
+  let tradeAmount;
+  if (amount === '100%') {
+    console.log('Processing 100% order size...');
+    // Use maximum available balance
+    if (action === 'buy') {
+      console.log('Creating quote for buying SOL with max USDC');
+      const quote = {
+        outputMint: INPUT_MINT,
+        inAmount: Number.MAX_SAFE_INTEGER,
+        outAmount: 0
+      };
+      tradeAmount = await calculateTradeAmount(OUTPUT_MINT, action, quote);
+    } else {
+      console.log('Creating quote for selling max SOL');
+      const quote = {
+        inputMint: INPUT_MINT,
+        inAmount: Number.MAX_SAFE_INTEGER,
+        outAmount: 0
+      };
+      tradeAmount = await calculateTradeAmount(INPUT_MINT, action, quote);
+    }
+  } else {
+    console.log('Processing fixed position size:', amount);
+    // Use position_size if specified
+    if (action === 'buy') {
+      tradeAmount = Math.floor(parseFloat(amount) * 1e6); // Convert USDC to decimals
+      console.log('Converted USDC amount:', tradeAmount);
+    } else {
+      tradeAmount = Math.floor(parseFloat(amount) * 1e9); // Convert SOL to lamports
+      console.log('Converted SOL amount:', tradeAmount);
+    }
+  }
+
+  console.log('Final calculated trade amount:', tradeAmount);
+  if (tradeAmount === 0) {
+    throw new Error('Trade amount calculation failed. Check balances and parameters.');
+  }
+
+  console.log(`Proceeding with trade: ${tradeAmount} ${action === 'buy' ? 'USDC' : 'lamports'}`);
+
+  // Get final quote for the actual trade amount
+  const quoteResponse = await getQuote(tradeAmount, action);
+  console.log('Quote response:', quoteResponse);
+
+  const swapTransaction = await getSwapTransaction(quoteResponse);
+  console.log('Swap transaction received.');
+
+  const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
+  const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
+
+  const latestBlockhash = await connection.getLatestBlockhash();
+  transaction.message.recentBlockhash = latestBlockhash.blockhash;
+  transaction.sign([wallet.payer]);
+
+  const serializedTransaction = transaction.serialize();
+
+  const signature = await sendAndConfirmTransaction({
+    connection,
+    serializedTransaction,
+    blockhashWithExpiryBlockHeight: latestBlockhash,
+  });
+
+  // Get transaction details for return value
+  const txInfo = await connection.getTransaction(signature, {
+    maxSupportedTransactionVersion: 0
+  });
+
+  return {
+    signature,
+    blockTime: txInfo?.blockTime,
+    fee: txInfo?.meta?.fee,
+    slot: txInfo?.slot
+  };
+}
+
 /**
  * Handle incoming swap requests via webhook
  */
@@ -374,12 +464,13 @@ app.post('/webhook', async (req, res) => {
   const startTime = Date.now();
   
   try {
-    const { action, amount, token, price } = req.body;
+    const { action, order_size, position_size, token, price } = req.body;
     
     // Log trade request
     logger.info('Trade request received', {
       action,
-      amount,
+      order_size,
+      position_size,
       token,
       price,
       timestamp: new Date().toISOString()
@@ -393,14 +484,11 @@ app.post('/webhook', async (req, res) => {
     });
 
     if (balance / LAMPORTS_PER_SOL < MIN_SOL_BALANCE) {
-      logger.error('Insufficient balance', {
-        balance: balance / LAMPORTS_PER_SOL,
-        minRequired: MIN_SOL_BALANCE
-      });
       throw new Error('Insufficient balance');
     }
 
-    // Execute trade
+    // Execute trade with order_size or position_size
+    const amount = order_size === '100%' ? order_size : position_size;
     const result = await executeTrade(action, amount, token, price);
     
     // Calculate execution time
