@@ -613,7 +613,7 @@ app.get('/api/logs', async (req, res) => {
 
 // Serve the logs page
 app.get('/logs', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/logs.html'));
+  res.sendFile(path.join(__dirname, '.logs.html'));
 });
 
 
