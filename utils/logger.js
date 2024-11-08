@@ -1,27 +1,30 @@
 import winston from 'winston';
 import path from 'path';
-import { format } from 'winston';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Custom format for trade logs
-const tradeFormat = format.printf(({ level, message, timestamp, ...metadata }) => {
+const tradeFormat = winston.format.printf(({ level, message, timestamp, ...metadata }) => {
   const metaStr = Object.keys(metadata).length ? 
     JSON.stringify(metadata, null, 2) : '';
   return `[${timestamp}] ${level.toUpperCase()}: ${message} ${metaStr}`;
 });
 
 // Create logger
-const logger = winston.createLogger({
-  format: format.combine(
-    format.timestamp(),
-    format.metadata({ fillExcept: ['message', 'level', 'timestamp'] }),
+export const logger = winston.createLogger({
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.metadata({ fillExcept: ['message', 'level', 'timestamp'] }),
     tradeFormat
   ),
   transports: [
     // Console logging
     new winston.transports.Console({
       level: 'debug',
-      format: format.combine(
-        format.colorize(),
+      format: winston.format.combine(
+        winston.format.colorize(),
         tradeFormat
       )
     }),
