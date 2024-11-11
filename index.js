@@ -1,4 +1,11 @@
-import express from 'express';
+import {
+  Connection,
+  Keypair,
+  VersionedTransaction,
+  PublicKey,
+  TransactionExpiredBlockheightExceededError,
+  LAMPORTS_PER_SOL
+} from '@solana/web3.js';import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import https from 'https';
@@ -10,14 +17,6 @@ import chalk from 'chalk';
 import figlet from 'figlet';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
-import {
-  Connection,
-  Keypair,
-  VersionedTransaction,
-  PublicKey,
-  TransactionExpiredBlockheightExceededError,
-  LAMPORTS_PER_SOL
-} from '@solana/web3.js';
 import { Wallet } from '@project-serum/anchor';
 import bs58 from 'bs58';
 import crypto from 'crypto';
@@ -30,8 +29,20 @@ const JUPITER_BASE_DELAY = 500;
 const SLIPPAGE_BPS = 300; // 3%
 const INPUT_MINT = 'So11111111111111111111111111111111111111112'; // SOL
 const OUTPUT_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'; // USDC
-
-
+const RPC_ENDPOINTS = [
+  'https://api.mainnet-beta.solana.com',
+  'https://thrilling-red-tree.solana-mainnet.quiknode.pro/392c7c4a3140c4fcef39f1be375947284e2f799c',
+  'https://mainnet.helius-rpc.com/?api-key=292afef7-e149-4010-862b-f611beb385fc'
+];
+const RPC_TIMEOUT = 45000; // 45 seconds
+let currentRpcIndex = 0;
+const wallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIVATE_KEY || '')));
+const SEND_OPTIONS = {
+  skipPreflight: true,
+  maxRetries: 1,
+  computeUnits: 1_000_000,    
+  priorityFee: 10_000_000,   // Increased priority fee to 0.1 SOL for better chances
+};
 
 // Validate required environment variables
 const requiredEnvVars = [
@@ -40,6 +51,7 @@ const requiredEnvVars = [
     'SOLANA_RPC_ENDPOINT',
     'PRIVATE_KEY'
 ];
+
 
 const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
@@ -72,6 +84,7 @@ client.capture({
   }
 })
 
+// 🔑 SSL
 
 // Load SSL certificates only in production
 const getSSLCredentials = () => {
@@ -115,65 +128,79 @@ const credentials = getSSLCredentials();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-
-
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Create an EventEmitter for RPC events
-const rpcEvents = new EventEmitter();
 
-// Create connection with retry and event emission
-const createRateLimitedConnection = () => {
-    const maxRetries = 3;
-    const baseDelay = 1000;
 
-    return new Connection(process.env.SOLANA_RPC_ENDPOINT, {
-        commitment: 'finalized',
-        async fetchMiddleware(url, options, fetch) {
-            for (let attempt = 0; attempt < maxRetries; attempt++) {
-                try {
-                    return await fetch(url, options);
-                } catch (error) {
-                    if (error) {
-                        const delay = baseDelay * Math.pow(2, attempt);
-                        
-                        // Emit rate limit event
-                        rpcEvents.emit('rateLimitHit', {
-                            retryIn: delay,
-                            attempt: attempt + 1,
-                            endpoint: url
-                        });
 
-                        logger.warn('Rate limit hit', {
-                            retryIn: delay,
-                            attempt: attempt + 1,
-                            endpoint: url
-                        });
 
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                        continue;
-                    }
-                    throw error;
-                }
-            }
-            throw new Error(`Failed after ${maxRetries} attempts due to rate limits`);
+// Update connection creation to use the current RPC endpoint
+const connection = new Connection(RPC_ENDPOINTS[currentRpcIndex], 'finalized');
+
+// Add RPC health check function
+async function checkRPCHealth(endpoint) {
+    try {
+        const conn = new Connection(endpoint, 'confirmed');
+        const start = Date.now();
+        await conn.getSlot();
+        const latency = Date.now() - start;
+        console.log(`RPC ${endpoint} is healthy (latency: ${latency}ms)`);
+        return true;
+    } catch (error) {
+        console.error(`RPC ${endpoint} is unhealthy:`, error.message);
+        return false;
+    }
+}
+
+// Add startup health check
+async function validateRPCEndpoints() {
+    console.log('Validating RPC endpoints...');
+    const healthyEndpoints = [];
+    
+    for (const endpoint of RPC_ENDPOINTS) {
+        if (await checkRPCHealth(endpoint)) {
+            healthyEndpoints.push(endpoint);
         }
-    });
+    }
+    
+    if (healthyEndpoints.length === 0) {
+        console.error(chalk.red('Error: No healthy RPC endpoints available'));
+        process.exit(1);
+    }
+    
+    console.log(`${healthyEndpoints.length} healthy RPC endpoints available`);
+    return healthyEndpoints;
+}
+
+// Update server startup to include RPC validation
+const startServer = async () => {
+    try {
+        // Validate RPC endpoints
+        const healthyEndpoints = await validateRPCEndpoints();
+        
+        // Update RPC_ENDPOINTS with only healthy ones
+        RPC_ENDPOINTS.length = 0;
+        RPC_ENDPOINTS.push(...healthyEndpoints);
+
+        // Start the server
+        const port = process.env.PORT || 3000;
+        app.listen(port, () => {
+            console.log(chalk.green(`Server running on port ${port}`));
+            console.log('\nAvailable endpoints:');
+            console.log(chalk.yellow('- Dashboard:', `http://localhost:${port}/dashboard.html`));
+            console.log(chalk.yellow('- API:', `http://localhost:${port}/api/trades`));
+        });
+    } catch (error) {
+        console.error('Failed to start server:', error);
+        process.exit(1);
+    }
 };
 
-const connection = createRateLimitedConnection();
-const wallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIVATE_KEY || '')));
 
-const SEND_OPTIONS = {
-  skipPreflight: true,
-  maxRetries: 1,
-  computeUnits: 1_000_000,    
-  priorityFee: 10_000_000,   // Increased priority fee to 0.1 SOL for better chances
-};
 
-async function calculateTradeAmount(inputMint, action, quote) {
+async function calculateTradeAmount(inputMint, action, quote, connection) {
   try {
     const minBalanceSol = 0.1; // Minimum SOL balance to maintain
     const estimatedTxFeeSol = 0.001; // Transaction fee in SOL
@@ -185,12 +212,6 @@ async function calculateTradeAmount(inputMint, action, quote) {
       minBalanceSol,
       estimatedTxFeeSol
     });
-
-    if (!quote || typeof quote.inAmount === 'undefined' || typeof quote.outAmount === 'undefined') {
-      console.log('⚠️ Quote object:', quote);
-      console.log('⚠️ Quote object is missing or malformed. Aborting trade calculation.');
-      return 0;
-    }
 
     if (action === 'buy' && inputMint === OUTPUT_MINT) { 
       console.log('Calculating buy amount with USDC...');
@@ -218,8 +239,8 @@ async function calculateTradeAmount(inputMint, action, quote) {
           const usdcBalance = tokenAmount.amount;
           console.log(`💰 Available USDC: ${(usdcBalance / 1e6).toFixed(2)} USDC`);
 
-          // Use the min of USDC balance or inAmount from the quote
-          const tradeAmountUsdc = Math.min(usdcBalance, quote.inAmount);
+          // Use all available USDC balance for 100% trades
+          const tradeAmountUsdc = usdcBalance;
           console.log(`🔄 Trading USDC for SOL: ${(tradeAmountUsdc / 1e6).toFixed(2)}`);
           return Math.floor(tradeAmountUsdc);
         }
@@ -263,7 +284,7 @@ async function calculateTradeAmount(inputMint, action, quote) {
 }
 
 // Update the getQuote function with better rate limit handling
-async function getQuote(amount, action = 'sell') {
+async function getQuote(amount, action = 'sell', connection) {
   const maxRetries = JUPITER_MAX_RETRIES;
   let lastError;
 
@@ -306,7 +327,7 @@ async function getQuote(amount, action = 'sell') {
 }
 
 // Update getSwapTransaction with similar rate limit handling
-async function getSwapTransaction(quoteResponse) {
+async function getSwapTransaction(quote, connection) {
   const maxRetries = JUPITER_MAX_RETRIES;
   let lastError;
 
@@ -318,7 +339,7 @@ async function getSwapTransaction(quoteResponse) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          quoteResponse,
+          quoteResponse: quote,
           userPublicKey: wallet.publicKey.toString(),
           wrapAndUnwrapSol: true,
           dynamicComputeUnitLimit: true,
@@ -354,265 +375,279 @@ async function getSwapTransaction(quoteResponse) {
   throw lastError;
 }
 
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function abortableResender(connection, serializedTransaction, abortSignal) {
-  while (true) {
-    await wait(2000);
-    if (abortSignal.aborted) return;
-    try {
-      await connection.sendRawTransaction(serializedTransaction, SEND_OPTIONS);
-    } catch (e) {
-      console.warn(`Failed to resend transaction: ${e}`);
-    }
-  }
-}
 
-async function sendAndConfirmTransaction({ connection, serializedTransaction, blockhashWithExpiryBlockHeight }) {
-  const controller = new AbortController();
-  const abortSignal = controller.signal;
-  const maxRetries = 3;
+// Update executeTrade to use RPC rotation and existing functions
+async function executeTrade(tradeRequest) {
+    const startTime = Date.now();
+    let lastError;
+    let lastSignature;
 
-  try {
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        // Get fresh blockhash for EACH attempt
-        const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+    console.log('Starting trade execution with request:', JSON.stringify(tradeRequest, null, 2));
+
+    for (let rpcAttempt = 0; rpcAttempt < RPC_ENDPOINTS.length; rpcAttempt++) {
+        const connection = new Connection(RPC_ENDPOINTS[currentRpcIndex], 'finalized');
         
-        // Deserialize and update transaction with new blockhash
-        const transaction = VersionedTransaction.deserialize(serializedTransaction);
-        transaction.message.recentBlockhash = latestBlockhash.blockhash;
-        
-        // Re-sign with updated blockhash
-        transaction.sign([wallet.payer]);
-        const newSerializedTx = transaction.serialize();
-        
-        const signature = await connection.sendRawTransaction(
-          newSerializedTx,
-          {
-            ...SEND_OPTIONS,
-            maxRetries: 1, // Reduce internal retries since we're handling retries here
-            skipPreflight: true
-          }
-        );
-        
-        console.log(`Attempt ${attempt + 1}: Transaction sent. Signature:`, signature);
+        console.log(`Using RPC endpoint: ${RPC_ENDPOINTS[currentRpcIndex]}`);
 
-        // Wait for confirmation with shorter timeout
-        const confirmation = await connection.confirmTransaction({
-          signature,
-          blockhash: latestBlockhash.blockhash,
-          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight
-        }, 'finalized');
+        try {
+            // Fresh calculation for each attempt
+            let tradeAmount;
+            if (tradeRequest.order_size === '100%') {
+                console.log('Getting fresh quote for 100% calculation...');
+                const initialQuote = await getQuote(LAMPORTS_PER_SOL, tradeRequest.action, connection);
+                console.log('Initial quote received:', initialQuote);
+                
+                tradeAmount = await calculateTradeAmount(
+                    tradeRequest.action === 'buy' ? OUTPUT_MINT : INPUT_MINT,
+                    tradeRequest.action,
+                    initialQuote,
+                    connection
+                );
+            } else {
+                tradeAmount = tradeRequest.action === 'buy' 
+                    ? Math.floor(parseFloat(tradeRequest.position_size) * 1e6)
+                    : Math.floor(parseFloat(tradeRequest.position_size) * LAMPORTS_PER_SOL);
+            }
 
-        if (confirmation.value.err) {
-          throw new Error(`Transaction failed: ${confirmation.value.err}`);
+            console.log(`Calculated trade amount: ${tradeAmount}`);
+
+            if (!tradeAmount || tradeAmount === 0) {
+                throw new Error('Invalid trade amount calculated');
+            }
+
+            // Get fresh quote with actual amount
+            console.log('Getting fresh final quote...');
+            const quote = await getQuote(tradeAmount, tradeRequest.action, connection);
+            console.log('Final quote received:', quote);
+
+            // Get fresh swap transaction
+            console.log('Getting fresh swap transaction...');
+            const swapTransaction = await getSwapTransaction(quote, connection);
+            console.log('Swap transaction received');
+
+            // Get fresh blockhash
+            console.log('Getting fresh blockhash...');
+            const latestBlockhash = await connection.getLatestBlockhash('finalized');
+            console.log('Latest blockhash received:', latestBlockhash.blockhash);
+
+            // Process transaction
+            const transaction = VersionedTransaction.deserialize(
+                Buffer.from(swapTransaction, 'base64')
+            );
+            transaction.message.recentBlockhash = latestBlockhash.blockhash;
+            transaction.sign([wallet.payer]);
+
+            // Send transaction
+            console.log('Sending transaction...');
+            const signature = await connection.sendRawTransaction(
+                transaction.serialize(),
+                SEND_OPTIONS
+            );
+            lastSignature = signature;
+            console.log(`Transaction sent. Signature: ${signature}`);
+
+            // Wait for confirmation with timeout
+            console.log('Waiting for confirmation...');
+            const confirmationPromise = new Promise(async (resolve, reject) => {
+                const startConfirmTime = Date.now();
+                
+                while (Date.now() - startConfirmTime < RPC_TIMEOUT) {
+                    try {
+                        const status = await connection.getSignatureStatus(signature);
+                        
+                        if (status.value?.err) {
+                            reject(new Error(`Transaction failed: ${JSON.stringify(status.value.err)}`));
+                            break;
+                        }
+                        
+                        if (status.value?.confirmationStatus === 'finalized') {
+                            resolve(status);
+                            break;
+                        }
+                        
+                        await new Promise(r => setTimeout(r, 1000));
+                    } catch (error) {
+                        console.warn(`Error checking status: ${error.message}`);
+                        await new Promise(r => setTimeout(r, 1000));
+                    }
+                }
+                reject(new Error('Confirmation timeout'));
+            });
+
+            await confirmationPromise;
+            
+            console.log(`✅ Trade executed successfully: ${signature}`);
+            return {
+                signature,
+                success: true,
+                timestamp: new Date().toISOString()
+            };
+
+        } catch (error) {
+            console.error(`Attempt ${rpcAttempt + 1} failed with RPC ${currentRpcIndex}:`, error);
+            lastError = error;
+            
+            if (Date.now() - startTime >= RPC_TIMEOUT) {
+                console.log('Switching to next RPC endpoint after timeout');
+                currentRpcIndex = (currentRpcIndex + 1) % RPC_ENDPOINTS.length;
+                continue;
+            }
+
+            // Check last signature before continuing
+            if (lastSignature) {
+                try {
+                    const status = await connection.getSignatureStatus(lastSignature);
+                    if (status.value?.confirmationStatus === 'finalized') {
+                        return {
+                            signature: lastSignature,
+                            success: true,
+                            timestamp: new Date().toISOString()
+                        };
+                    }
+                } catch (statusError) {
+                    console.warn('Error checking signature status:', statusError?.message);
+                }
+            }
+
+            // Wait before trying next RPC
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            currentRpcIndex = (currentRpcIndex + 1) % RPC_ENDPOINTS.length;
         }
-
-        console.log(`✅ Transaction successful: https://solscan.io/tx/${signature}`);
-        return signature;
-
-      } catch (error) {
-        console.error(`Attempt ${attempt + 1} failed:`, error);
-        
-        // Check if we should retry
-        if (attempt < maxRetries - 1 && (
-          error instanceof TransactionExpiredBlockheightExceededError ||
-          error.message.includes('Internal error') ||
-          error.message.includes('429') ||
-          error.message.includes('Too Many Requests')
-        )) {
-          const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
-          console.log(`Retrying in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          continue;
-        }
-        throw error;
-      }
     }
-  } finally {
-    controller.abort();
-  }
-}
 
-async function executeTrade(action, amount, token, price) {
-  console.log('Received alert, starting swap process.');
-  
-  // Validate action
-  if (!['buy', 'sell'].includes(action)) {
-    throw new Error('Invalid action: must be "buy" or "sell"');
-  }
-
-  // Get initial quote to determine price and amounts
-  let initialAmount = action === 'buy' ? 1_000_000 : 1_000_000_000; // 1 USDC or 1 SOL for price check
-  console.log('Getting initial price quote with amount:', initialAmount);
-  const priceQuote = await getQuote(initialAmount, action);
-  console.log('Price quote response:', priceQuote);
-  
-  // Calculate actual trade amount based on amount parameter
-  let tradeAmount;
-  if (amount === '100%') {
-    console.log('Processing 100% order size...');
-    // Use maximum available balance
-    if (action === 'buy') {
-      console.log('Creating quote for buying SOL with max USDC');
-      const quote = {
-        outputMint: INPUT_MINT,
-        inAmount: Number.MAX_SAFE_INTEGER,
-        outAmount: 0
-      };
-      tradeAmount = await calculateTradeAmount(OUTPUT_MINT, action, quote);
-    } else {
-      console.log('Creating quote for selling max SOL');
-      const quote = {
-        inputMint: INPUT_MINT,
-        inAmount: Number.MAX_SAFE_INTEGER,
-        outAmount: 0
-      };
-      tradeAmount = await calculateTradeAmount(INPUT_MINT, action, quote);
-    }
-  } else {
-    console.log('Processing fixed position size:', amount);
-    // Use position_size if specified
-    if (action === 'buy') {
-      tradeAmount = Math.floor(parseFloat(amount) * 1e6); // Convert USDC to decimals
-      console.log('Converted USDC amount:', tradeAmount);
-    } else {
-      tradeAmount = Math.floor(parseFloat(amount) * 1e9); // Convert SOL to lamports
-      console.log('Converted SOL amount:', tradeAmount);
-    }
-  }
-
-  console.log('Final calculated trade amount:', tradeAmount);
-  if (tradeAmount === 0) {
-    throw new Error('Trade amount calculation failed. Check balances and parameters.');
-  }
-
-  console.log(`Proceeding with trade: ${tradeAmount} ${action === 'buy' ? 'USDC' : 'lamports'}`);
-
-  // Get final quote for the actual trade amount
-  const quoteResponse = await getQuote(tradeAmount, action);
-  console.log('Quote response:', quoteResponse);
-
-  const swapTransaction = await getSwapTransaction(quoteResponse);
-  console.log('Swap transaction received.');
-
-  const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
-  const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
-
-  const latestBlockhash = await connection.getLatestBlockhash();
-  transaction.message.recentBlockhash = latestBlockhash.blockhash;
-  transaction.sign([wallet.payer]);
-
-  const serializedTransaction = transaction.serialize();
-
-  const signature = await sendAndConfirmTransaction({
-    connection,
-    serializedTransaction,
-    blockhashWithExpiryBlockHeight: latestBlockhash,
-  });
-
-  // Get transaction details for return value
-  const txInfo = await connection.getTransaction(signature, {
-    maxSupportedTransactionVersion: 0
-  });
-
-  return {
-    signature,
-    blockTime: txInfo?.blockTime,
-    fee: txInfo?.meta?.fee,
-    slot: txInfo?.slot
-  };
+    throw new Error(`Trade execution failed after trying all RPC endpoints: ${lastError?.message || 'Unknown error'}`);
 }
 
 /**
  * Handle incoming swap requests via webhook
  */
 app.post('/webhook', async (req, res) => {
-  const startTime = Date.now();
-  
-  try {
-    const { action, order_size, position_size, token, price } = req.body;
-    
-    // Log trade request
-    logger.info('Trade request received', {
-      metadata: {
-        tradeId: crypto.randomUUID(),
-        action,
-        order_size,
-        position_size,
-        token,
-        price,
-        timestamp: new Date().toISOString()
-      }
-    });
+    const startTime = Date.now();
+    try {
+        console.log('Raw webhook request body:', JSON.stringify(req.body, null, 2));
+        
+        // Extract trade request with logging
+        const tradeRequest = req.body?.metadata?.metadata || req.body;
+        console.log('Extracted trade request:', JSON.stringify(tradeRequest, null, 2));
+        
+        // Log trade request
+        logger.info('Trade request received', {
+            metadata: {
+                tradeId: crypto.randomUUID(),
+                ...tradeRequest,
+                timestamp: new Date().toISOString()
+            }
+        });
 
-    // Check balance
-    const balance = await connection.getBalance(wallet.publicKey);
-    logger.debug('Current balance', {
-      balance: balance / LAMPORTS_PER_SOL,
-      minRequired: MIN_SOL_BALANCE
-    });
+        // Create fresh connection for balance check
+        const connection = new Connection(RPC_ENDPOINTS[currentRpcIndex], 'finalized');
+        
+        // Check balance
+        const balance = await connection.getBalance(wallet.publicKey);
+        console.log('Raw balance:', balance);
+        console.log('Wallet public key:', wallet.publicKey.toString());
+        
+        logger.debug('Current balance', {
+            balance: balance / LAMPORTS_PER_SOL,
+            minRequired: MIN_SOL_BALANCE
+        });
 
-    if (balance / LAMPORTS_PER_SOL < MIN_SOL_BALANCE) {
-      throw new Error('Insufficient balance');
+        if (balance / LAMPORTS_PER_SOL < MIN_SOL_BALANCE) {
+            throw new Error('Insufficient balance');
+        }
+
+        // Normalize and validate request
+        const normalizedRequest = {
+            action: tradeRequest.action,
+            order_size: tradeRequest.order_size,
+            position_size: tradeRequest.position_size
+        };
+
+        console.log('Normalized request:', JSON.stringify(normalizedRequest, null, 2));
+
+        // Validate required fields
+        if (!normalizedRequest.action) {
+            throw new Error('Missing required field: action');
+        }
+        if (!normalizedRequest.order_size && !normalizedRequest.position_size) {
+            throw new Error('Missing required field: order_size or position_size');
+        }
+
+        // Execute trade with try-catch
+        let result;
+        try {
+            result = await executeTrade(normalizedRequest);
+            console.log('Trade execution result:', JSON.stringify(result, null, 2));
+        } catch (tradeError) {
+            console.error('Trade execution error:', {
+                message: tradeError?.message || 'Unknown trade error',
+                stack: tradeError?.stack,
+                error: tradeError
+            });
+            throw tradeError; // Re-throw to be caught by outer catch
+        }
+        
+        // Calculate execution time
+        const executionTime = Date.now() - startTime;
+        
+        // Log successful trade
+        logger.info('Trade executed successfully', {
+            metadata: {
+                tradeId: crypto.randomUUID(),
+                action: tradeRequest.action,
+                amount: tradeRequest.position_size,
+                token: tradeRequest.ticker,
+                executionTime: `${executionTime}ms`,
+                txHash: result.signature,
+                normalizedRequest,
+                result
+            }
+        });
+
+        // Track in PostHog with error handling
+        try {
+            client.capture({
+                distinctId: 'trade',
+                event: 'trade_completed',
+                properties: {
+                    action: tradeRequest.action,
+                    amount: tradeRequest.position_size,
+                    token: tradeRequest.ticker,
+                    executionTime,
+                    txHash: result.signature
+                }
+            });
+        } catch (posthogError) {
+            console.error('PostHog tracking error:', posthogError);
+        }
+
+        res.json({ status: 'success', data: result });
+
+    } catch (error) {
+        const executionTime = Date.now() - startTime;
+        
+        // Enhanced error logging
+        console.error('Webhook error details:', {
+            error
+        });
+        
+        // Log error with full context
+        logger.error('Trade execution failed', {
+            metadata: {
+                tradeId: crypto.randomUUID(),
+                error: error?.message || 'Unknown error',
+                stack: error?.stack,
+                executionTime: `${executionTime}ms`,
+                request: req.body
+            }
+        });
+
+        res.status(500).json({ 
+            status: 'error', 
+            message: error?.message || 'Unknown error'
+        });
     }
-
-    // Execute trade with order_size or position_size
-    const amount = order_size === '100%' ? order_size : position_size;
-    const result = await executeTrade(action, amount, token, price);
-    
-    // Calculate execution time
-    const executionTime = Date.now() - startTime;
-    
-    // Log successful trade
-    logger.info('Trade executed successfully', {
-      metadata: {
-        tradeId: crypto.randomUUID(),
-        action,
-        amount,
-        token,
-        price,
-        executionTime: `${executionTime}ms`,
-        txHash: result.signature,
-        blockTime: result.blockTime,
-        fee: result.fee,
-        slot: result.slot
-      }
-    });
-
-    // Track in PostHog
-    client.capture({
-      distinctId: 'trade',
-      event: 'trade_completed',
-      properties: {
-        action,
-        amount,
-        token,
-        price,
-        executionTime,
-        txHash: result.signature
-      }
-    });
-
-    res.json({ status: 'success', data: result });
-
-  } catch (error) {
-    const executionTime = Date.now() - startTime;
-    
-    // Log error with full context
-    logger.error('Trade execution failed', {
-      metadata: {
-        tradeId: crypto.randomUUID(),
-        error: error.message,
-        stack: error.stack,
-        executionTime: `${executionTime}ms`,
-        request: req.body
-      }
-    });
-
-    res.status(500).json({ status: 'error', message: error.message });
-  }
 });
 
 app.get('/', (req, res) => {
@@ -630,51 +665,60 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-const displayStartupBanner = (port) => {
-    console.log('\n');
-    console.log(chalk.cyan(figlet.textSync('SolTradeView', { horizontalLayout: 'full' })));
-    console.log('\n');
+// Add this function near the top with other utility functions
+function displayStartupBanner(port) {
+    console.log(chalk.green(figlet.textSync('SolTradeView', {
+        font: 'Standard',
+        horizontalLayout: 'default',
+        verticalLayout: 'default'
+    })));
     
-    const isDev = process.env.NODE_ENV !== 'production';
-    const domain = process.env.DOMAIN || 'soltradeview.com'; // Fallback domain
-    
-    console.log(chalk.blue('Mode:'), isDev ? chalk.yellow('Development') : chalk.green('Production'));
-    console.log(chalk.blue('Server:'), chalk.green(`Running on port ${port}`));
-    console.log(chalk.blue('RPC Endpoint:'), chalk.gray(process.env.SOLANA_RPC_ENDPOINT));
-    console.log('\n');
-    
-    console.log(chalk.white.bold('Available Endpoints:'));
-    const baseUrl = isDev ? 
-        `http://localhost:${port}` : 
-        `https://${domain}`;
-        
-    console.log(chalk.red(`• Webhook:   ${baseUrl}/webhook`));
-    console.log(chalk.yellow(`• Dashboard: ${baseUrl}/dashboard.html`));
-    console.log(chalk.yellow(`• API:       ${baseUrl}/api/trades`));
-    console.log('\n');
-    
-    if (isDev) {
-        console.log(chalk.gray('Press Ctrl+C to stop the server'));
-        console.log('\n');
-    }
-};
+    console.log(chalk.cyan('\n=== Server Configuration ==='));
+    console.log(chalk.cyan('Environment:'), process.env.NODE_ENV);
+    console.log(chalk.cyan('Port:'), port);
+    console.log(chalk.cyan('RPC Endpoints:'), RPC_ENDPOINTS.length);
+    console.log(chalk.cyan('========================\n'));
+}
 
+// Then the server startup code can use it
+if (process.env.NODE_ENV === 'production') {
+    // HTTP server for redirects
+    const httpApp = express();
+    httpApp.use((req, res) => {
+        return res.redirect(301, `https://${req.headers.host}${req.url}`);
+    });
 
+    // Start HTTP server
+    http.createServer(httpApp).listen(80, () => {
+        displayStartupBanner(80);
+        console.log(chalk.green('HTTP Server running on port 80 and redirecting to HTTPS'));
+    });
+
+    // Start HTTPS server
+    https.createServer(credentials, app).listen(443, () => {
+        displayStartupBanner(443);
+        console.log(chalk.green('HTTPS Server running on port 443'));
+        console.log(chalk.yellow(`Webhook URL: https://${process.env.DOMAIN}/webhook`));
+        console.log(chalk.yellow('Dashboard:', `https://${process.env.DOMAIN}/dashboard.html`));
+    });
+} else {
+    // Development server
+    const port = process.env.PORT || 3000;
+    app.listen(port, () => {
+        displayStartupBanner(port);
+        console.log(chalk.green(`Development server running on port ${port}`));
+        console.log(chalk.yellow(`Webhook URL: http://localhost:${port}/webhook`));
+        console.log('\nAvailable endpoints:');
+        console.log(chalk.yellow('- Dashboard:', `http://localhost:${port}/dashboard.html`));
+        console.log(chalk.yellow('- API:', `http://localhost:${port}/api/trades`));
+    });
+}
 
 // Ensure events are sent before server shutdown
 process.on('SIGTERM', async () => {
   await client.shutdown()
   process.exit(0)
 })
-
-// Listen for rate limit events
-rpcEvents.on('rateLimitHit', ({ retryIn, attempt, endpoint }) => {
-    logger.warn('Rate limit hit', {
-        retryIn: `${retryIn}ms`,
-        attempt,
-        endpoint: process.env.SOLANA_RPC_ENDPOINT
-    });
-});
 
 // Log application startup
 process.on('SIGTERM', () => {
@@ -837,37 +881,12 @@ app.get('/logs', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'logs.html'));
 });
 
-
-
-
-
-// Server setup based on environment
-if (process.env.NODE_ENV === 'production') {
-  // HTTP server for redirects
-  const httpApp = express();
-  httpApp.use((req, res) => {
-    return res.redirect(301, `https://${req.headers.host}${req.url}`);
-  });
-
-  // Start HTTP server
-  http.createServer(httpApp).listen(80, () => {
-    console.log(chalk.green('HTTP Server running on port 80 and redirecting to HTTPS'));
-  });
-
-  // Start HTTPS server
-  https.createServer(credentials, app).listen(443, () => {
-    console.log(chalk.green('HTTPS Server running on port 443'));
-    console.log(chalk.yellow(`Webhook URL: https://${process.env.DOMAIN}/webhook`));
-    console.log(chalk.yellow('Dashboard:', `https://${process.env.DOMAIN}/dashboard.html`));
-
-  });
-} else {
-  // Development server
-  app.listen(3000, () => {
-    console.log(chalk.green('Development server running on port 3000'));
-    console.log(chalk.red('Webhook URL: http://localhost:3000/webhook'));
-    console.log('\nAvailable endpoints:');
-    console.log(chalk.yellow('- Dashboard:', 'http://localhost:3000/dashboard.html'));
-    console.log(chalk.yellow('- API:', 'http://localhost:3000/api/trades'));
-  });
-}
+app.get('/health', async (req, res) => {
+    try {
+        const connection = new Connection(RPC_ENDPOINTS[currentRpcIndex], 'finalized');
+        await connection.getSlot();
+        res.json({ status: 'healthy' });
+    } catch (error) {
+        res.status(500).json({ status: 'unhealthy', error: error.message });
+    }
+});
