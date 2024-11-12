@@ -20,6 +20,7 @@ import { fileURLToPath } from 'url';
 import { Wallet } from '@project-serum/anchor';
 import bs58 from 'bs58';
 import crypto from 'crypto';
+import promiseRetry from 'promise-retry';
 dotenv.config();
 
 const MIN_SOL_BALANCE = process.env.MIN_SOL_BALANCE || 0.1;
@@ -375,9 +376,103 @@ async function getSwapTransaction(quote, connection) {
   throw lastError;
 }
 
+// Add these helper functions at the top with other utility functions
+async function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
+async function transactionSenderAndConfirmationWaiter({
+    connection,
+    serializedTransaction,
+    blockhashWithExpiryBlockHeight
+}) {
+    const txid = await connection.sendRawTransaction(
+        serializedTransaction,
+        SEND_OPTIONS
+    );
 
-// Update executeTrade to use RPC rotation and existing functions
+    const controller = new AbortController();
+    const abortSignal = controller.signal;
+
+    // Create abortable resender
+    const abortableResender = async () => {
+        while (true) {
+            await wait(2_000);
+            if (abortSignal.aborted) return;
+            try {
+                await connection.sendRawTransaction(
+                    serializedTransaction,
+                    SEND_OPTIONS
+                );
+            } catch (e) {
+                console.warn(`Failed to resend transaction: ${e}`);
+            }
+        }
+    };
+
+    try {
+        // Start resender
+        abortableResender();
+
+        const lastValidBlockHeight =
+            blockhashWithExpiryBlockHeight.lastValidBlockHeight - 150;
+
+        // Wait for confirmation with race condition
+        await Promise.race([
+            connection.confirmTransaction(
+                {
+                    ...blockhashWithExpiryBlockHeight,
+                    lastValidBlockHeight,
+                    signature: txid,
+                    abortSignal,
+                },
+                "confirmed"
+            ),
+            new Promise(async (resolve) => {
+                // Fallback polling in case WebSocket dies
+                while (!abortSignal.aborted) {
+                    await wait(2_000);
+                    const tx = await connection.getSignatureStatus(txid, {
+                        searchTransactionHistory: false,
+                    });
+                    if (tx?.value?.confirmationStatus === "confirmed") {
+                        resolve(tx);
+                    }
+                }
+            }),
+        ]);
+    } catch (e) {
+        if (e instanceof TransactionExpiredBlockheightExceededError) {
+            return null;
+        } else {
+            throw e;
+        }
+    } finally {
+        controller.abort();
+    }
+
+    // Retry getting transaction with promiseRetry
+    const response = await promiseRetry(
+        async (retry) => {
+            const response = await connection.getTransaction(txid, {
+                commitment: "confirmed",
+                maxSupportedTransactionVersion: 0,
+            });
+            if (!response) {
+                retry(response);
+            }
+            return response;
+        },
+        {
+            retries: 5,
+            minTimeout: 1000,
+        }
+    );
+
+    return response;
+}
+
+// Update executeTrade to use the new sender
 async function executeTrade(tradeRequest) {
     const startTime = Date.now();
     let lastError;
@@ -426,62 +521,36 @@ async function executeTrade(tradeRequest) {
             const swapTransaction = await getSwapTransaction(quote, connection);
             console.log('Swap transaction received');
 
-            // Get fresh blockhash
+            // Get fresh blockhash with expiry
             console.log('Getting fresh blockhash...');
-            const latestBlockhash = await connection.getLatestBlockhash('finalized');
-            console.log('Latest blockhash received:', latestBlockhash.blockhash);
+            const blockhashWithExpiryBlockHeight = await connection.getLatestBlockhash('confirmed');
+            console.log('Latest blockhash received:', blockhashWithExpiryBlockHeight.blockhash);
 
             // Process transaction
             const transaction = VersionedTransaction.deserialize(
                 Buffer.from(swapTransaction, 'base64')
             );
-            transaction.message.recentBlockhash = latestBlockhash.blockhash;
+            transaction.message.recentBlockhash = blockhashWithExpiryBlockHeight.blockhash;
             transaction.sign([wallet.payer]);
 
-            // Send transaction
-            console.log('Sending transaction...');
-            const signature = await connection.sendRawTransaction(
-                transaction.serialize(),
-                SEND_OPTIONS
-            );
-            lastSignature = signature;
-            console.log(`Transaction sent. Signature: ${signature}`);
-
-            // Wait for confirmation with timeout
-            console.log('Waiting for confirmation...');
-            const confirmationPromise = new Promise(async (resolve, reject) => {
-                const startConfirmTime = Date.now();
-                
-                while (Date.now() - startConfirmTime < RPC_TIMEOUT) {
-                    try {
-                        const status = await connection.getSignatureStatus(signature);
-                        
-                        if (status.value?.err) {
-                            reject(new Error(`Transaction failed: ${JSON.stringify(status.value.err)}`));
-                            break;
-                        }
-                        
-                        if (status.value?.confirmationStatus === 'finalized') {
-                            resolve(status);
-                            break;
-                        }
-                        
-                        await new Promise(r => setTimeout(r, 1000));
-                    } catch (error) {
-                        console.warn(`Error checking status: ${error.message}`);
-                        await new Promise(r => setTimeout(r, 1000));
-                    }
-                }
-                reject(new Error('Confirmation timeout'));
+            // Send and confirm transaction with new logic
+            console.log('Sending and confirming transaction...');
+            const txResponse = await transactionSenderAndConfirmationWaiter({
+                connection,
+                serializedTransaction: transaction.serialize(),
+                blockhashWithExpiryBlockHeight
             });
 
-            await confirmationPromise;
-            
-            console.log(`✅ Trade executed successfully: ${signature}`);
+            if (!txResponse) {
+                throw new Error('Transaction expired or failed');
+            }
+
+            console.log(`✅ Trade executed successfully:`, txResponse.signature);
             return {
-                signature,
+                signature: txResponse.signature,
                 success: true,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                txDetails: txResponse
             };
 
         } catch (error) {
