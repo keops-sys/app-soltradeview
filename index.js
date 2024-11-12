@@ -34,7 +34,7 @@ const RPC_ENDPOINTS = [
   'https://thrilling-red-tree.solana-mainnet.quiknode.pro/392c7c4a3140c4fcef39f1be375947284e2f799c',
   'https://mainnet.helius-rpc.com/?api-key=292afef7-e149-4010-862b-f611beb385fc'
 ];
-const RPC_TIMEOUT = 45000; // 45 seconds
+const RPC_TIMEOUT = 450000; // 45 seconds
 let currentRpcIndex = 0;
 const wallet = new Wallet(Keypair.fromSecretKey(bs58.decode(process.env.PRIVATE_KEY || '')));
 const SEND_OPTIONS = {
