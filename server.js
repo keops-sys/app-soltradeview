@@ -1,3 +1,4 @@
+import 'newrelic';
 import express from 'express';
 import http from 'node:http';
 import https from 'https';
