@@ -5,6 +5,8 @@ Move a .env file in the root of the project and add the following:
 
 `mv .env.example .env`
 
+pm2 link s6vupg2mr5gcavw 3ua3fp6vqgzmf1p
+
 
 # Start
 ```

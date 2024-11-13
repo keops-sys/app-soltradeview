@@ -3,6 +3,9 @@
 exports.config = {
   app_name: ['soltradeview'],
   license_key: process.env.NEWRELIC_KEY,
+  distributed_tracing: {
+    enabled: true
+  },
   logging: {
     level: 'info'
   },
