@@ -47,15 +47,9 @@ fi
 if [[ "$(hostname)" == "soletradeview-mvp" ]]; then
     export NODE_ENV=production
     log "Starting in production mode..."
+    pm2 start index.js
 else
     export NODE_ENV=development
     log "Starting in development mode..."
-fi
-
-# Start the application with error handling
-if node index.js; then
-    log "Application started successfully"
-else
-    error "Application failed to start"
-    exit 1
+    npx nodemon index.js
 fi

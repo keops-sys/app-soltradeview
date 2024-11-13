@@ -23,5 +23,9 @@
         "ts-node": "^10.9.2",
         "uuid": "^11.0.3",
         "winston": "^3.16.0"
+    },
+    "scripts": {
+        "start": "node -r newrelic index.js",
+        "dev": "NODE_ENV=development nodemon -r newrelic index.js"
     }
 }
