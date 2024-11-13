@@ -1,6 +1,7 @@
 import express from 'express';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { rpcWithRetry, fetchWithRetry } from './lib/retry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,33 +60,6 @@ const SEND_OPTIONS = {
   preflightCommitment: 'confirmed'
 };
 
-// Add this utility function for RPC calls
-async function rpcWithRetry(operation, maxRetries = 5) {
-  let retryCount = 0;
-  let delay = 100000; // Start with 10s delay
-
-  while (retryCount < maxRetries) {
-    try {
-      return await operation(connectionPool[currentConnectionIndex]);
-    } catch (error) {
-      if (!error.message.includes('429 Too Many Requests')) {
-        throw error;
-      }
-      
-      retryCount++;
-      console.log(`RPC rate limited. Switching endpoint and retrying ${retryCount}/${maxRetries}`);
-      
-      // Switch to next connection before retry
-      const nextConnection = getNextConnection();
-      console.log(`Switched to RPC endpoint ${currentConnectionIndex + 1}/${connectionPool.length}`);
-      
-      await new Promise(resolve => setTimeout(resolve, delay));
-      delay *= 2;
-    }
-  }
-  throw new Error('Max retries reached on all endpoints');
-}
-
 async function calculateTradeAmount(inputMint, action, quote) {
   try {
     const minBalanceSol = 0.1;
@@ -101,18 +75,22 @@ async function calculateTradeAmount(inputMint, action, quote) {
 
     if (action === 'buy' && inputMint === OUTPUT_MINT) { 
       console.log('Calculating buy amount with USDC...');
-      const tokenAccounts = await rpcWithRetry(async (connection) => 
-        connection.getTokenAccountsByOwner(wallet.publicKey, {
-          mint: new PublicKey(inputMint),
-        })
+      const tokenAccounts = await rpcWithRetry(
+        async (connection) => 
+          connection.getTokenAccountsByOwner(wallet.publicKey, {
+            mint: new PublicKey(inputMint),
+          })
+        , connectionPool, currentConnectionIndex
       );
 
       console.log('Found token accounts:', tokenAccounts.value.length);
 
       let totalUsdcBalance = 0;
       for (const account of tokenAccounts.value) {
-        const accountInfo = await rpcWithRetry(async (connection) => 
-          connection.getParsedAccountInfo(account.pubkey)
+        const accountInfo = await rpcWithRetry(
+          async (connection) => 
+            connection.getParsedAccountInfo(account.pubkey)
+          , connectionPool, currentConnectionIndex
         );
         const tokenAmount = accountInfo.value?.data?.parsed?.info?.tokenAmount;
         console.log('Token account info:', {
@@ -143,8 +121,10 @@ async function calculateTradeAmount(inputMint, action, quote) {
 
     console.log('Calculating sell amount with SOL...');
     // Sell SOL to get USDC
-    const balance = await rpcWithRetry(async (connection) => 
-      connection.getBalance(wallet.publicKey)
+    const balance = await rpcWithRetry(
+      async (connection) => 
+        connection.getBalance(wallet.publicKey)
+      , connectionPool, currentConnectionIndex
     );
     const currentBalanceSol = balance / LAMPORTS_PER_SOL;
     console.log(`Current SOL balance: ${currentBalanceSol}`);
@@ -175,32 +155,6 @@ async function calculateTradeAmount(inputMint, action, quote) {
     console.error('💥 Error calculating trade amount:', error);
     throw error;
   }
-}
-
-// Add this utility function for exponential backoff
-async function fetchWithRetry(url, options = {}, maxRetries = 5) {
-  let retryCount = 0;
-  let delay = 50000; // Start with 500ms delay
-
-  while (retryCount < maxRetries) {
-    try {
-      const response = await fetch(url, options);
-      if (response.status !== 429) {
-        return response;
-      }
-      
-      retryCount++;
-      console.log(`Rate limited (429). Retry ${retryCount}/${maxRetries} after ${delay}ms`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-      delay *= 2; // Exponential backoff
-    } catch (error) {
-      if (retryCount === maxRetries - 1) throw error;
-      retryCount++;
-      await new Promise(resolve => setTimeout(resolve, delay));
-      delay *= 2;
-    }
-  }
-  throw new Error('Max retries reached');
 }
 
 /**
@@ -259,63 +213,53 @@ async function getSwapTransaction(quoteResponse) {
 }
 
 // Update the sendTransaction function to handle responses better
-async function sendTransaction(serializedTransaction) {
-  try {
-    const response = await fetch('https://worker.jup.ag/send-transaction', {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        transaction: serializedTransaction
-      })
-    });
+// async function sendTransaction(serializedTransaction) {
+//   try {
+//     const response = await fetch('https://worker.jup.ag/send-transaction', {
+//       method: 'POST',
+//       headers: {
+//         'Accept': 'application/json',
+//         'Content-Type': 'application/json'
+//       },
+//       body: JSON.stringify({
+//         transaction: serializedTransaction
+//       })
+//     });
 
-    // Check if response is ok before parsing JSON
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Jupiter API error: ${errorText}`);
-    }
+//     // Check if response is ok before parsing JSON
+//     if (!response.ok) {
+//       const errorText = await response.text();
+//       throw new Error(`Jupiter API error: ${errorText}`);
+//     }
 
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error sending transaction through Jupiter:', error);
-    return { success: false, error: error.message };
-  }
-}
+//     const data = await response.json();
+//     return data;
+//   } catch (error) {
+//     console.error('Error sending transaction through Jupiter:', error);
+//     return { success: false, error: error.message };
+//   }
+// }
 
 // Update sendAndConfirmTransaction to handle errors better
 async function sendAndConfirmTransaction({ serializedTransaction, blockhashWithExpiryBlockHeight }) {
   try {
-    // Try Jupiter's transaction sender first
-    try {
-      const jupiterResult = await sendTransaction(serializedTransaction);
-      
-      if (jupiterResult.success) {
-        console.log('Transaction sent through Jupiter. Signature:', jupiterResult.signature);
-        return jupiterResult.signature;
-      } else {
-        console.log('Jupiter sender unavailable, falling back to RPC');
-      }
-    } catch (error) {
-      console.log('Jupiter sender failed, falling back to RPC:', error.message);
-    }
-
     // Fallback to direct RPC
-    const signature = await rpcWithRetry(async (connection) => 
-      connection.sendRawTransaction(serializedTransaction, SEND_OPTIONS)
+    const signature = await rpcWithRetry(
+      async (connection) => connection.sendRawTransaction(serializedTransaction, SEND_OPTIONS),
+      connectionPool,
+      currentConnectionIndex
     );
     console.log('Transaction sent through RPC. Signature:', signature);
 
     // Wait for confirmation
-    const confirmation = await rpcWithRetry(async (connection) => 
-      connection.confirmTransaction({
+    const confirmation = await rpcWithRetry(
+      async (connection) => connection.confirmTransaction({
         signature,
         blockhash: blockhashWithExpiryBlockHeight.blockhash,
         lastValidBlockHeight: blockhashWithExpiryBlockHeight.lastValidBlockHeight
-      })
+      }),
+      connectionPool,
+      currentConnectionIndex
     );
 
     if (confirmation?.value?.err) {
