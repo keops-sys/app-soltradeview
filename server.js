@@ -8,6 +8,7 @@ import { postHog } from './lib/config.js';
 import { setupRoutes } from './lib/routes.js';
 import { RPC_ENDPOINTS, wallet } from './lib/config.js';
 import os from 'os';
+import newrelic from 'newrelic';
 
 /**
  * Start the server based on environment
