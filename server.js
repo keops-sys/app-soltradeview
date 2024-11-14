@@ -4,7 +4,7 @@ import http from 'node:http';
 import https from 'https';
 import fs from 'fs';
 import { logger } from './lib/logger.js';
-import { analytics } from './lib/config.js';
+import { postHog } from './lib/config.js';
 import { setupRoutes } from './lib/routes.js';
 import { RPC_ENDPOINTS, wallet } from './lib/config.js';
 import os from 'os';
@@ -67,7 +67,7 @@ function startProductionServer(app) {
         mode: '⚡ production'
       });
       
-      analytics.capture({
+      postHog.capture({
         distinctId: 'server',
         event: 'server_started',
         properties: {
@@ -96,10 +96,32 @@ function startProductionServer(app) {
           cpuUsage: process.cpuUsage()
         }
       });
+
+      // Add NewRelic event for server start
+      newrelic.recordCustomEvent('ServerStarted', {
+        mode: 'production',
+        port: 443,
+        domain: process.env.DOMAIN,
+        nodeVersion: process.version,
+        platform: process.platform,
+        arch: process.arch,
+        cpuCount: os.cpus().length,
+        totalMemory: os.totalmem(),
+        freeMemory: os.freemem(),
+        loadAverage: os.loadavg(),
+        pid: process.pid,
+        ppid: process.ppid,
+        nodeEnv: process.env.NODE_ENV,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        dependencies: JSON.stringify(process.versions),
+        memoryUsage: JSON.stringify(process.memoryUsage()),
+        cpuUsage: JSON.stringify(process.cpuUsage()),
+        timestamp: Date.now()
+      });
     });
 
   } catch (error) {
-    analytics.capture({
+    postHog.capture({
       distinctId: 'server',
       event: 'server_error',
       properties: {
@@ -117,6 +139,22 @@ function startProductionServer(app) {
         loadAverage: os.loadavg()
       }
     });
+
+    // Add NewRelic event for server error
+    newrelic.recordCustomEvent('ServerError', {
+      error: error.message,
+      errorName: error.name,
+      stack: error.stack,
+      memoryUsage: JSON.stringify(process.memoryUsage()),
+      cpuUsage: JSON.stringify(process.cpuUsage()),
+      uptime: process.uptime(),
+      nodeVersion: process.version,
+      platform: process.platform,
+      freeMemory: os.freemem(),
+      loadAverage: os.loadavg(),
+      timestamp: Date.now()
+    });
+
     logger.error('Failed to start HTTPS server ❌', {
       error: error.message,
       stack: error.stack

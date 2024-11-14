@@ -30,3 +30,6 @@ The certificates will be generated in:
 
 # RPC Nodes Providers
 https://www.alchemy.com/list-of/rpc-node-providers-on-solana
+
+
+NEW_RELIC_AI_MONITORING_ENABLED=true NEW_RELIC_CUSTOM_INSIGHTS_EVENTS_MAX_SAMPLES_STORED=100k NEW_RELIC_SPAN_EVENTS_MAX_SAMPLES_STORED=10k NEW_RELIC_APP_NAME=soltradeview NEW_RELIC_LICENSE_KEY=04973d82d5b3753d2f011af75b78ed74FFFFNRAL node -r newrelic index.js
